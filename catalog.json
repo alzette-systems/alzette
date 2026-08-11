@@ -1,0 +1,116 @@
+{
+  "version": "2026-08-10",
+  "note": "Sneak peek — a selection from the full Alzette model catalogue. The complete catalogue, with exact versions, availability tiers, and input/output pricing, is shared on request and defined per service agreement.",
+  "tiers": {
+    "shared": "Available on shared pilot capacity",
+    "dedicated": "Available on dedicated tenant capacity",
+    "reserved": "Available under reserved-capacity contracts"
+  },
+  "models": [
+    {
+      "id": "kimi-k3",
+      "name": "Kimi K3",
+      "vendor": "Moonshot AI",
+      "released": "2026-07",
+      "parameters": "2.8T MoE · 16/896 experts active",
+      "context": "1M tokens",
+      "modalities": ["text", "vision"],
+      "capabilities": ["reasoning", "coding", "tool calling", "long context"],
+      "license": "Kimi K3 License (Modified MIT)",
+      "tiers": ["dedicated", "reserved"],
+      "flagship": true,
+      "bestFor": "The hardest reasoning and coding workloads — current open-weight benchmark leader."
+    },
+    {
+      "id": "glm-5.2",
+      "name": "GLM 5.2",
+      "vendor": "Z.ai",
+      "released": "2026-06",
+      "parameters": "743B MoE",
+      "context": "1,040k tokens",
+      "modalities": ["text"],
+      "capabilities": ["reasoning", "coding", "tool calling", "long context"],
+      "license": "MIT",
+      "tiers": ["dedicated", "reserved"],
+      "bestFor": "Broad reasoning, coding agents, and long-document workflows."
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "name": "DeepSeek V4 Pro",
+      "vendor": "DeepSeek",
+      "released": "2026-04",
+      "parameters": "1.6T MoE",
+      "context": "1,040k tokens",
+      "modalities": ["text"],
+      "capabilities": ["reasoning", "coding", "long context"],
+      "license": "MIT",
+      "tiers": ["dedicated", "reserved"],
+      "bestFor": "Long-context reasoning and repository-scale analysis from a second model family."
+    },
+    {
+      "id": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash",
+      "vendor": "DeepSeek",
+      "released": "2026-04",
+      "parameters": "284B MoE",
+      "context": "1,040k tokens",
+      "modalities": ["text"],
+      "capabilities": ["reasoning", "long context", "high throughput"],
+      "license": "MIT",
+      "tiers": ["shared", "dedicated"],
+      "bestFor": "High-volume long-context routes where token rate matters more than the last benchmark points."
+    },
+    {
+      "id": "kimi-k2.7-code",
+      "name": "Kimi K2.7 Code",
+      "vendor": "Moonshot AI",
+      "released": "2026-06",
+      "parameters": "1.02T MoE",
+      "context": "262k tokens",
+      "modalities": ["text", "vision"],
+      "capabilities": ["coding", "tool calling", "screenshot review"],
+      "license": "Modified MIT",
+      "tiers": ["shared", "dedicated"],
+      "bestFor": "Repository agents, code review, and screenshot-driven developer tools."
+    },
+    {
+      "id": "minimax-m3",
+      "name": "MiniMax M3",
+      "vendor": "MiniMax",
+      "released": "2026-06",
+      "parameters": "428B MoE · ~23B active",
+      "context": "512k tokens",
+      "modalities": ["text", "image", "video"],
+      "capabilities": ["multimodal", "reasoning", "media understanding"],
+      "license": "MiniMax Community",
+      "tiers": ["dedicated"],
+      "bestFor": "Native multimodal work — image and video input with strong reasoning."
+    },
+    {
+      "id": "qwen3-vl",
+      "name": "Qwen3-VL 30B",
+      "vendor": "Alibaba / Qwen",
+      "released": "2026-05",
+      "parameters": "30B MoE · 3B active",
+      "context": "256k tokens",
+      "modalities": ["text", "image", "documents"],
+      "capabilities": ["vision-language", "multilingual OCR", "document parsing"],
+      "license": "Apache 2.0",
+      "tiers": ["shared", "dedicated"],
+      "bestFor": "Visual documents, multilingual OCR, and high-DPI scan understanding."
+    },
+    {
+      "id": "deepseek-ocr",
+      "name": "DeepSeek-OCR",
+      "vendor": "DeepSeek",
+      "released": "2025-10",
+      "parameters": "3B",
+      "context": "optical compression",
+      "modalities": ["documents"],
+      "capabilities": ["OCR", "layout parsing", "markdown output"],
+      "license": "MIT",
+      "tiers": ["shared"],
+      "bestFor": "High-throughput document digitisation — invoices, forms, and archival scans."
+    }
+  ]
+}
