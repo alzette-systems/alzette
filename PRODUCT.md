@@ -8,33 +8,94 @@ web
 
 ## Users
 
-Primary: decision-makers across Luxembourg's financial centre — banks, fund administrators, insurers, PSFs, asset managers, fiduciaries — specifically the partners, directors, and compliance-responsible staff evaluating whether AI can be used on confidential client work. They read fast, are risk-averse, and forward URLs to boards. Fiduciaries are one segment, not the target.
+Primary: decision-makers across Luxembourg's financial centre — banks, fund administrators, insurers, PSFs, asset managers, fiduciaries — and knowledge-intensive advisory firms serving regulated clients, specifically the partners, directors, and compliance-responsible staff evaluating whether AI can be used on confidential client work without erasing the organisation's distinctive methods and language. They read fast, are risk-averse, and forward URLs to boards. Fiduciaries and large consultancies are segments, not the whole target.
 
 Secondary: developers and IT partners/integrators who connect the endpoint to existing applications. Surfaces route them to technical sections; the decision-maker leads.
 
 ## Product Purpose
 
-Alzette Systems provides private AI inference endpoints for Luxembourg's financial centre and other regulated organisations: OpenAI-compatible APIs to approved open-weight models, hosted in Luxembourg, with dedicated capacity, predictable metering, stable model versions, and a direct operational relationship. Success means a financial professional adopts AI on confidential workloads without creating a new risk category.
+Alzette Systems is building managed AI infrastructure for Luxembourg's financial centre and other regulated organisations through two related service branches. **Managed Inference** provides stable OpenAI-compatible APIs to approved models, dedicated customer deployments by default, optional explicitly shared service, predictable usage visibility, stable model versions, customer-controlled private interaction custody, and a direct operational relationship. **Model Improvement** is the Alzette-operated lifecycle for turning customer-authorised prompts, outputs, and other permitted data into private evaluation evidence and, where justified, an adapted model release. The intended production environment is MeluXina. Success begins when a financial organisation can evaluate the inference product without a sales gate, then acquire a model endpoint whose dedicated GPU capacity, expected service capacity, price, execution boundary, data-custody policy, and expansion path are explicit before activation.
+
+For a subscribed dedicated customer, prompts and outputs can be retained in a
+private, tenant-isolated interaction vault under that company's recorded
+policy. The company chooses which projects, people, applications, and
+interaction classes are retained; who may inspect, export, select, or delete
+them; how long they remain; and whether they may be used for improvement.
+Alzette makes no independent or cross-customer use of that content. Contract
+and applicable law control any ownership, client-confidentiality, employee,
+legal-hold, backup, and deletion qualifications.
+
+Model Improvement is a distinct managed branch rather
+than a customer self-service training console. The customer controls the
+business objective, permitted source data, evaluation criteria, and release
+approval. Alzette prepares the private dataset, runs evaluation and approved
+adaptation work, safeguards artefacts, recommends a release, deploys the
+approved version, and operates rollback. It is a gated product direction, not
+current implementation evidence and never a default use of customer data.
 
 The product is infrastructure. It is not an employee-facing AI workspace, an accounting application, an agent marketplace, or a compliance consultancy.
 
 ## Positioning
 
-The missing middle between prohibiting AI and accepting a large public-cloud relationship: production-ready private endpoints that the customer's existing tools call, controlled by the customer's organisation, operated locally. Control stays with the customer; operations stay with Alzette. Hosting location, service levels, retention, and model availability are contractual — defined in the service agreement, not in marketing text.
+The intended product is the missing middle between prohibiting AI and accepting an uncontrolled public-cloud relationship: customer-scoped endpoints that existing tools call, with dedicated managed model deployments as the primary offer. Control stays with the customer; operations stay with Alzette. Hosting location, service levels, retention, model availability, and dedicated/shared mode are contractual—defined in the service agreement and evidenced by the running route, not inferred from marketing text.
+
+The strategic value goes beyond infrastructure locality. A company that sends
+all of its work through generic AI without preserving its approved
+interactions, evaluations, terminology, and release decisions risks outsourcing
+part of its institutional differentiation. Alzette gives the customer a
+private custody and improvement path so AI can reinforce the firm's methods
+rather than flatten them into generic provider behaviour.
+
+The commercial unit is an **endpoint capacity unit**, not a raw machine picker: one approved model release, one validated runtime/hardware profile, a declared number of dedicated accelerators, evidenced capacity metrics, and a versioned price. A customer chooses the model, deployment mode, and required capacity; Alzette assigns and operates the physical infrastructure. Buying additional capacity units expands the endpoint without changing its customer URL or credential contract. Exact physical hardware remains visible as operational/contract evidence and an advanced constraint, not the default selection workflow.
+
+The public landing page sells the finished service, not the temporary implementation route: private model infrastructure operated in Luxembourg, with dedicated customer deployments as the primary production offer. The first viewport must make that commercial promise legible to a financial-industry decision-maker and should not read like a release report. Exact current execution evidence remains visible in the authenticated portal and implementation documentation, where it matters operationally.
+
+The current PoC is narrower and intentionally honest in those technical surfaces: Alzette owns the client endpoint, tenant routing, credentials, metering, and dashboard, and is configured to forward through OpenRouter. Deterministic compatible-target evidence exists; a live OpenRouter call does not yet. The connected customer route is labelled **External pilot / Shared pilot**; OpenRouter remains operator configuration rather than a browser-inferred availability claim. It is not MeluXina-hosted or dedicated compute.
 
 ## Operating Context
 
-Evaluation happens under compliance and procurement scrutiny: security packs, service specifications, and board-level forwarding of claims. Integration is done by the customer's developers or IT partner using the OpenAI SDK or standard HTTP tooling; tools that cannot point to a custom endpoint are connected during onboarding. Contracts define budgets, hard spending caps, retention policy, and model availability per tenant.
+Evaluation happens under compliance and procurement scrutiny: security packs, service specifications, and board-level forwarding of claims. Integration is done by the customer's developers or IT partner using the OpenAI SDK or standard HTTP tooling. Contracts define the model, dedicated/shared mode, allocation or allowance, limits, retention policy, execution location, and support per tenant.
 
 ## Capabilities and Constraints
 
-Confirmed: OpenAI-compatible chat/streaming/structured-output/embeddings API; tenant-isolated credentials, quotas, and usage records; organisation- and project-level budgets, rate limits, and hard monthly caps; versioned model releases with change communication; prompt and response content not retained by default; contractual Luxembourg hosting.
+Current implementation contract: one OpenAI-compatible Chat Completions text/function-tool subset with bounded buffered and SSE responses; operator-controlled tenant/project/environment/model-alias routing; separate human sessions and one-time workload keys; one logical customer request separated from internal target attempts; metadata-only usage records; route-bound service plans; exact scoped usage, attribution, rollups, opt-in probes, and safe exports; an authenticated curated Models catalogue, resumable shared/dedicated endpoint configurations, immutable dedicated quotes, hosted-payment state, immutable sizing intent for deployment/capacity requests, and separate commercial/payment/runtime evidence across Overview, Usage, Endpoints, Models, Billing, Access, and Docs; no prompt/output persistence in the current PoC; a standalone database-independent public landing/docs process; single-machine Docker Compose deployment.
 
-Service stage: **pilot, signing first clients** — capacity exists and is operational; the announce bar's "private inference pilot" is literal. The hero console's `operational` status is a claim the company stands behind.
+Current human accounts are operator-provisioned usernames/passwords. The target
+customer-account experience is hybrid self-service B2B: a person verifies a
+business email, authenticates through Alzette's self-hosted identity service,
+and enters an isolated evaluation organisation with a hard-capped shared route;
+approval converts that same identity and organisation into a customer boundary
+eligible for dedicated deployment. Authorised customer administrators can
+invite teammates. Interactive employees authenticate agents with short-lived,
+membership-bound human access rather than permanent personal API keys;
+service-account keys remain available for applications and unattended
+workloads. [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md) defines the
+account lifecycle and [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md)
+defines invited-employee agent access. Neither is current implementation
+evidence.
 
-Model catalogue: curated open-weight models incl. Kimi K3 (flagship), GLM 5.2, DeepSeek V4 Pro/Flash, Kimi K2.7 Code, MiniMax M3, Qwen3-VL, DeepSeek-OCR. Machine-readable sneak peek at `catalog.json` (versioned 2026-08-10); full catalogue with pricing is shared on request. Kimi K3 license terms should be verified before legal publication.
+Service stage: **offline-validated OpenRouter-compatible product PoC for the first client**. The opt-in live OpenRouter smoke is pending a newly rotated credential, so a real-provider pilot is not yet evidenced. MeluXina access, allocation, model deployment, private LAN serving, Luxembourg execution, dedicated compute, production SLA, and production capacity are not yet established as live operational evidence. The customer portal and technical documentation must continue to label that evidence exactly; the public landing page describes the intended private Luxembourg service and keeps contract-specific details subject to the applicable client agreement.
 
-Legal identity (confirmed 2026-08-11, published in footer): "Alzette Systems" is a commercial name of DUCHENE S.à r.l.-S; RCS Luxembourg B258532; VAT LU33413731; registered address 7, route de Mamer, Holzem, Luxembourg (per owner — the RCS record may still show the previous Prince Henri address; a registered-office change filing may be needed). The company no longer retains a fiduciary. Undecided (still marked on the page as [TODO] slots): privacy policy URL, committed SLA figure, certification status. The catalogue table rows are illustrative pending the real per-tier assignments.
+Strategic infrastructure objective: Alzette intends to qualify early for
+MeluXina-AI and seek a front-row role as a Luxembourg specialised inference and
+Model Improvement operator for regulated organisations. This is an ecosystem
+and roadmap objective, not evidence of access, partnership, allocation,
+preferred status, production suitability, or commercial terms.
+
+Deferred until tested or required by the first workflow: structured output, embeddings, image/audio input, arbitrary model uploads, automatic MeluXina allocation, customer selection of raw machines, customer federation/SCIM, scheduled billing reconciliation, production invoice/tax operations, and multi-host orchestration. The implemented curated catalogue, hard-capped shared evaluation, customer-authored deployment requests, and priced dedicated-capacity quotes are control-plane capability only until an operator publishes evidenced offers and the selected provider/payment/fulfilment paths pass their opt-in gates. Physical provisioning remains operator-approved until its infrastructure and commercial evidence are automated.
+
+A first Model Improvement engagement is deferred until a dedicated inference
+workflow has value evidence, the customer has approved the exact source data
+and purpose, applicable client/data/model rights are recorded, retention and
+deletion are enforceable, and a private evaluation baseline, release approval,
+and rollback path exist. Arbitrary uploads, automatic transfer of retained
+prompts/outputs into improvement without a separate approval, and a
+customer-operated general-purpose training/MLOps workspace remain out of
+scope; Alzette operates this branch for the customer.
+
+Model availability is tenant- and route-specific. A catalogue entry describes a reviewed model; a deployment profile describes a model/runtime/hardware combination Alzette can quote; a quote records price and expected capacity; only a validated deployment and active tenant-route binding prove that an endpoint is available. During the PoC, stable Alzette aliases map to operator-approved external model identifiers. Catalogue, quote, deployment, target, and route state must never be collapsed into one optimistic status.
+
+Legal identity (confirmed 2026-08-11, published in footer): "Alzette Systems" is a commercial name of DUCHENE S.à r.l.-S; RCS Luxembourg B258532; VAT LU33413731; registered address 7, route de Mamer, Holzem, Luxembourg (per owner — the RCS record may still show the previous Prince Henri address; a registered-office change filing may be needed). The company no longer retains a fiduciary. The privacy policy URL, committed SLA figure, certification status, and a verified model catalogue remain undecided, so the public page does not link or claim them.
 
 ## Brand Commitments
 
@@ -44,12 +105,23 @@ Voice (binding): calm, contract-first, no hype adjectives, evidence over claims.
 
 ## Evidence on Hand
 
-`copy.md` (homepage copy source), `catalog.json` (model sneak peek), the endpoint architecture diagram, the Python integration snippet. Absent and not to be fabricated: customer names, testimonials, case studies, certifications, real benchmark numbers, SLA figures, legal entity details.
+`POC_BOUNDARY.md` (controlling current implementation contract), `PORTAL_PRD.md` (broader product requirements), `ENDPOINTS_PRD.md` (implemented endpoint-acquisition contract and remaining gates), `ACCOUNT_ONBOARDING_PRD.md` (future account-onboarding contract), `WORKFORCE_AGENT_ACCESS_PRD.md` (future invited-employee OAuth/proxy contract), the running Slice 0–2 portal/gateway, deterministic compatible-target and endpoint/billing integration evidence, and the verified request contract. Absent and not to be fabricated: customer names, testimonials, case studies, certifications, real benchmark numbers, SLA figures, MeluXina or MeluXina-AI access/deployments/preferred status, live catalogue supply/prices/capacity unless actually seeded from reviewed evidence, dedicated OpenRouter capacity, live Stripe checkout evidence, an implemented self-registration/evaluation workflow, implemented Casdoor/employee-agent access, an implemented private interaction vault, or an implemented private improvement-dataset, evaluation, or fine-tuning workflow. Schema support, a catalogue card, or a customer-facing concept alone is not supply or capability evidence.
 
 ## Product Principles
 
-1. Proof over promises — show the running service, the catalogue, the contract boundary; never restate a claim in new adjectives.
+1. A product page, not a changelog — lead with the finished private Luxembourg offer; keep implementation-state evidence in technical and authenticated surfaces.
 2. The decision-maker leads; developers are routed, not courted.
 3. Contract-first — every production commitment lives in the service agreement; the site points at it rather than paraphrasing it.
 4. Control stays with the customer — every surface reinforces who decides versus who operates.
-5. Luxembourg is the differentiator — residency, jurisdiction, and local accountability belong in the first viewport, not the footer.
+5. Luxembourg is the production differentiator—the public page sells that operating model, while every authenticated runtime surface reports the actual execution class until the private route is tested and contracted.
+6. Buy endpoint capacity, not infrastructure trivia—the customer selects a model and an evidenced capacity/price profile; Alzette owns machine placement and operations unless a contract explicitly requires customer-site hardware.
+7. Preserve the endpoint while capacity changes—adding dedicated capacity updates the deployment behind the stable route and never silently changes model, tenancy mode, location, or commercial commitment.
+8. Separate people from workloads—interactive employees use short-lived, revocable human-agent access; applications and unattended automation use service accounts. Neither credential can impersonate the other.
+9. Customer interactions are valuable company assets—a subscribed company can
+   retain prompts and outputs in its private interaction vault under its own
+   recorded access, purpose, retention, export, deletion, and improvement
+   policy. Alzette does not appropriate or cross-use them.
+10. Model Improvement is a distinct Alzette-operated branch—content moves from
+    the private vault into an evaluation or adaptation dataset only under a
+    separate recorded purpose and approval, with versioned evidence and a
+    rollback decision.
