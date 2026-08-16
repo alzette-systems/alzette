@@ -6,10 +6,10 @@
 
 **Owners:** product, platform, security, and quality
 
-**Related documents:** [`PRODUCT.md`](PRODUCT.md) defines the product promise;
+**Related documents:** [`PRODUCT.md`](../product/PRODUCT.md) defines the product promise;
 [`PORTAL_PRD.md`](PORTAL_PRD.md) defines the complete customer portal;
 [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md) owns business signup,
-invitation, and membership state; [`POC_BOUNDARY.md`](POC_BOUNDARY.md) remains
+invitation, and membership state; [`POC_BOUNDARY.md`](../product/POC_BOUNDARY.md) remains
 the controlling statement of what the current software actually proves.
 
 This document controls the narrower but critical path from an accepted

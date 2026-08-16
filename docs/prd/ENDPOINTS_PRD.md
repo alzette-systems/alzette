@@ -6,9 +6,9 @@
 
 **Owners:** product, platform, design, operations, finance, and security
 
-**Related documents:** [`PRODUCT.md`](PRODUCT.md) defines the product and
+**Related documents:** [`PRODUCT.md`](../product/PRODUCT.md) defines the product and
 commercial unit; [`PORTAL_PRD.md`](PORTAL_PRD.md) defines the complete portal;
-[`POC_BOUNDARY.md`](POC_BOUNDARY.md) controls claims about the running PoC;
+[`POC_BOUNDARY.md`](../product/POC_BOUNDARY.md) controls claims about the running PoC;
 [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md) owns signup, recovery,
 membership, and invitations. This document makes the customer-facing model
 catalogue, endpoint acquisition, payment, and endpoint-management journey

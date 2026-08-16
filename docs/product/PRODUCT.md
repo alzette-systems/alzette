@@ -69,8 +69,8 @@ eligible for dedicated deployment. Authorised customer administrators can
 invite teammates. Interactive employees authenticate agents with short-lived,
 membership-bound human access rather than permanent personal API keys;
 service-account keys remain available for applications and unattended
-workloads. [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md) defines the
-account lifecycle and [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md)
+workloads. [`ACCOUNT_ONBOARDING_PRD.md`](../prd/ACCOUNT_ONBOARDING_PRD.md) defines the
+account lifecycle and [`WORKFORCE_AGENT_ACCESS_PRD.md`](../prd/WORKFORCE_AGENT_ACCESS_PRD.md)
 defines invited-employee agent access. Neither is current implementation
 evidence.
 

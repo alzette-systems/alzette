@@ -73,7 +73,7 @@ Alzette’s proposition is simple: dedicated inference for today’s workload, a
 
 ### Current Alzette evidence
 
-The repository currently demonstrates a narrow infrastructure PoC: a strict buffered and text/function-tool SSE Chat Completions subset, tested against deterministic compatible targets with offline proof; scoped tenant/project/environment routing and credentials; a PostgreSQL request/attempt ledger; a protected dashboard; operator provisioning; and single-machine Compose. The live provider smoke remains absent. It does not yet prove MeluXina access, MeluXina-AI access, dedicated production capacity, a live customer endpoint, customer traction, or a production Model Improvement pipeline. See [PRODUCT.md](PRODUCT.md), [PORTAL_PRD.md](PORTAL_PRD.md), and [MARKET_FIT.md](MARKET_FIT.md).
+The repository currently demonstrates a narrow infrastructure PoC: a strict buffered and text/function-tool SSE Chat Completions subset, tested against deterministic compatible targets with offline proof; scoped tenant/project/environment routing and credentials; a PostgreSQL request/attempt ledger; a protected dashboard; operator provisioning; and single-machine Compose. The live provider smoke remains absent. It does not yet prove MeluXina access, MeluXina-AI access, dedicated production capacity, a live customer endpoint, customer traction, or a production Model Improvement pipeline. See [PRODUCT.md](../product/PRODUCT.md), [PORTAL_PRD.md](../prd/PORTAL_PRD.md), and [MARKET_FIT.md](MARKET_FIT.md).
 
 ## Claims that must remain qualified
 

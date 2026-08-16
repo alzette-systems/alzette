@@ -7,7 +7,7 @@
 **Owners:** product, platform, and security
 
 **Related documents:** [`PORTAL_PRD.md`](PORTAL_PRD.md) defines the complete
-portal product; [`POC_BOUNDARY.md`](POC_BOUNDARY.md) remains the controlling
+portal product; [`POC_BOUNDARY.md`](../product/POC_BOUNDARY.md) remains the controlling
 description of what the current PoC actually exposes. This document makes the
 identity, evaluation-account, and team-onboarding workflows in sections E1 and
 E2 of the portal PRD implementable. [`ENDPOINTS_PRD.md`](ENDPOINTS_PRD.md)

@@ -8,7 +8,7 @@
 
 **Scope:** public product/docs surface, customer portal, inference gateway/control boundary, and the contract for a later operator-only MeluXina Operations module
 
-**Current PoC implementation boundary:** [`POC_BOUNDARY.md`](POC_BOUNDARY.md) is the controlling delivery contract for the OpenRouter-compatible first-client PoC. Where this broader PRD describes later portal or MeluXina capabilities, the narrower PoC boundary controls current scope.
+**Current PoC implementation boundary:** [`POC_BOUNDARY.md`](../product/POC_BOUNDARY.md) is the controlling delivery contract for the OpenRouter-compatible first-client PoC. Where this broader PRD describes later portal or MeluXina capabilities, the narrower PoC boundary controls current scope.
 
 **Account onboarding companion:** [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md)
 defines verified self-service evaluation signup, organisation conversion,
@@ -24,7 +24,7 @@ supersedes permanent personal API keys and new external Alzette-local passwords
 as the target employee workflow; none of it is current Slice 2 evidence.
 
 **Current provider research brief:**
-[`research/LUXPROVIDE_STARTUP_ACCESS.md`](research/LUXPROVIDE_STARTUP_ACCESS.md)
+[`research/LUXPROVIDE_STARTUP_ACCESS.md`](../../research/LUXPROVIDE_STARTUP_ACCESS.md)
 condenses the current startup-access, allocation, and experiment evidence for
 LuxProvide/MeluXina. It is a research aid; the evidence boundary and release
 requirements in this PRD remain controlling.
@@ -33,7 +33,7 @@ requirements in this PRD remain controlling.
 
 ## 2026-08-13 implementation checkpoint
 
-The repository now contains the offline implementation through Slice 2 plus a bounded agent gateway seam: a strict text/function-tool `POST /v1/chat/completions` subset with buffered and SSE responses; server-controlled tenant/project/environment/model-alias routing; separate logical-request/provider-attempt ledgers; human portal identity and sessions; operator-provisioned service plans; service accounts with one-time, expiring, overlap-rotatable keys; a multi-view client portal; exact usage, attribution, route evidence, hourly rollups, opt-in probes, and safe CSV/JSON export; a standalone public marketing/docs process; and one-machine PostgreSQL/migration/gateway/control/public/worker Compose deployment. Deterministic compatible-target, two-tenant, retry/accounting, migration, race, Compose, and browser evidence is recorded in [`QA_REPORT.md`](QA_REPORT.md).
+The repository now contains the offline implementation through Slice 2 plus a bounded agent gateway seam: a strict text/function-tool `POST /v1/chat/completions` subset with buffered and SSE responses; server-controlled tenant/project/environment/model-alias routing; separate logical-request/provider-attempt ledgers; human portal identity and sessions; operator-provisioned service plans; service accounts with one-time, expiring, overlap-rotatable keys; a multi-view client portal; exact usage, attribution, route evidence, hourly rollups, opt-in probes, and safe CSV/JSON export; a standalone public marketing/docs process; and one-machine PostgreSQL/migration/gateway/control/public/worker Compose deployment. Deterministic compatible-target, two-tenant, retry/accounting, migration, race, Compose, and browser evidence is recorded in [`QA_REPORT.md`](../assurance/QA_REPORT.md).
 
 ## 2026-08-14 public-surface checkpoint
 
@@ -132,7 +132,7 @@ publishes the corresponding evidenced catalogue/target records. Live Stripe
 test-mode checkout, live compatible-provider inference, scheduled billing
 reconciliation, MeluXina fulfilment, public signup, and team invitations remain
 gated. [`ENDPOINTS_PRD.md`](ENDPOINTS_PRD.md) is the detailed implementation
-contract; [`POC_BOUNDARY.md`](POC_BOUNDARY.md) remains controlling for claims.
+contract; [`POC_BOUNDARY.md`](../product/POC_BOUNDARY.md) remains controlling for claims.
 
 ## Reading the requirements
 
@@ -2047,7 +2047,7 @@ All sources in this register were accessed on **2026-08-12**. Links are primary/
 
 ### Repository evidence audited
 
-- [`POC_BOUNDARY.md`](POC_BOUNDARY.md) — controlling current software, dashboard, evidence-gate, and MeluXina boundary.
+- [`POC_BOUNDARY.md`](../product/POC_BOUNDARY.md) — controlling current software, dashboard, evidence-gate, and MeluXina boundary.
 - [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md) — hybrid self-service
   evaluation/customer account, invitation, recovery, technical-stack, security,
   test, and rollout contract; not current implementation evidence.
@@ -2055,15 +2055,20 @@ All sources in this register were accessed on **2026-08-12**. Links are primary/
   Casdoor identity boundary, invited-employee short-token path, local proxy,
   human/service actor accounting, security, test, and rollout contract; not
   current implementation evidence.
-- [`README.md`](README.md) — executable gateway/control/provisioning/key/Compose contracts, browser seam, secret-file handling, live-smoke command, and explicit deferrals.
-- [`cmd/alzette/main.go`](cmd/alzette/main.go) and [`internal/`](internal/) — process modes, strict Chat Completions gateway, authentication, routing, portal/control contracts, secret resolution, provisioning, stores, and tests.
-- [`migrations/`](migrations/) — embedded PostgreSQL tenant, credential, route, logical-request, provider-attempt, rollup-reservation, and append-only audit schema plus integrity hardening.
-- [`portal.html`](portal.html), [`portal.css`](portal.css), and [`portal.js`](portal.js) — protected multi-view client portal; no spend, hardware, invoice, prompt/output, target URL, or locality fiction.
-- [`QA_REPORT.md`](QA_REPORT.md) and [`POC_TEST_PLAN.md`](POC_TEST_PLAN.md) — executed offline evidence, harness limitations, blocked/deferred production gates, and opt-in live-provider gate.
-- [`PRODUCT.md`](PRODUCT.md) — target users, positioning, exact current implementation contract, and absent evidence.
-- [`MARKET_FIT.md`](MARKET_FIT.md) — current candid market/funding evidence assessment; treated as repository input, not independent traction proof.
-- [`index.html`](index.html), [`docs.html`](docs.html), and [`site.css`](site.css) — public marketing and exact implementation-documentation surfaces served by the standalone public process and excluded from the protected portal static root.
-- [`.herdr/team.yaml`](.herdr/team.yaml) — committed role ownership for coordination, product design, platform implementation, independent review, QA, and growth/funding research.
+- [`README.md`](../../README.md) — executable gateway/control/provisioning/key/Compose contracts, browser seam, secret-file handling, live-smoke command, and explicit deferrals.
+- [`cmd/alzette/main.go`](../../cmd/alzette/main.go) and [`internal/`](../../internal/) — process modes, strict Chat Completions gateway, authentication, routing, portal/control contracts, secret resolution, provisioning, stores, and tests.
+- [`migrations/`](../../migrations/) — embedded PostgreSQL tenant, credential, route, logical-request, provider-attempt, rollup-reservation, and append-only audit schema plus integrity hardening.
+- [`portal.html`](../../portal.html), [`portal.css`](../../portal.css), and [`portal.js`](../../portal.js) — protected multi-view client portal; no spend, hardware, invoice, prompt/output, target URL, or locality fiction.
+- [`QA_REPORT.md`](../assurance/QA_REPORT.md) and [`POC_TEST_PLAN.md`](../assurance/POC_TEST_PLAN.md) — executed offline evidence, harness limitations, blocked/deferred production gates, and opt-in live-provider gate.
+- [`PRODUCT.md`](../product/PRODUCT.md) — target users, positioning, exact current implementation contract, and absent evidence.
+- [`MARKET_FIT.md`](../growth/MARKET_FIT.md) — current candid market/funding evidence assessment; treated as repository input, not independent traction proof.
+- [`index.html`](../../index.html), [`docs.html`](../../docs.html), and
+  [`site.css`](../../site.css) — public marketing and exact
+  implementation-documentation surfaces served by the standalone public
+  process and excluded from the protected portal static root.
+- [`.herdr/team.yaml`](../../.herdr/team.yaml) — committed role ownership for
+  coordination, product design, platform implementation, independent review,
+  QA, and growth/funding research.
 
 ## J2. Competitor and MeluXina facts not verified publicly
 

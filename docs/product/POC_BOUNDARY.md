@@ -4,7 +4,7 @@
 
 **Date:** 2026-08-14
 
-**Future identity contract:** [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md)
+**Future identity contract:** [`WORKFORCE_AGENT_ACCESS_PRD.md`](../prd/WORKFORCE_AGENT_ACCESS_PRD.md)
 defines invited-employee OAuth, short-lived human-agent tokens, and a local
 compatibility proxy. Those capabilities are not current PoC evidence.
 
@@ -69,11 +69,11 @@ This PoC validates the Alzette software boundary and makes the product concept d
   transactional email, or public self-registration. The current human user and
   membership are operator-provisioned; the target hybrid self-service
   evaluation/invitation workflow is specified in
-  [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md).
+  [`ACCOUNT_ONBOARDING_PRD.md`](../prd/ACCOUNT_ONBOARDING_PRD.md).
 - Casdoor, portal OIDC, PKCE/device login, human-agent `alz_u_` tokens, a local
   credential proxy, native employee-agent login, or per-employee inference
   attribution. Their separate target contract is
-  [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md).
+  [`WORKFORCE_AGENT_ACCESS_PRD.md`](../prd/WORKFORCE_AGENT_ACCESS_PRD.md).
 - Prompt/output history, prompt analytics, or support access to content.
 - Live Stripe checkout/settlement evidence, scheduled retry/reconciliation of
   deferred billing events, production invoice/tax/refund/dispute operations,
@@ -258,7 +258,7 @@ The offline software slice is not complete until its implemented mandatory group
 9. **Accessibility:** semantic landmarks/headings, accessible tables/chart alternatives, focus, contrast, and status not conveyed by colour alone.
 10. **Security/review:** no secret/content logging, static-file containment, headers, authz review, race test, and independent code review. A current toolchain/dependency vulnerability review remains a production gate.
 
-Required verification commands and the exact pass/deferred evidence are versioned in `POC_TEST_PLAN.md` and `QA_REPORT.md`.
+Required verification commands and the exact pass/deferred evidence are versioned in `../assurance/POC_TEST_PLAN.md` and `../assurance/QA_REPORT.md`.
 
 The Slice 2 worker, bounded server-generated exports, and tested agent streaming subset are part of this release candidate. Backup/restore automation, stranded-row reconciliation, rate/concurrency enforcement, TLS ingress, compatibility beyond the tested text/function-tool subset, retention/runbooks, and production operations are explicit later gates. Their absence does not invalidate the narrow offline software proof, but it blocks production readiness and any claim that those capabilities exist.
 
