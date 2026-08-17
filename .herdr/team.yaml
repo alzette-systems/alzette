@@ -1,0 +1,250 @@
+schema_version: 1
+name: alzette
+
+members:
+  - name: coordinator
+    role: coordinator
+    kind: codex
+    model: gpt-5.6-sol
+    launch_args:
+      - --model
+      - gpt-5.6-sol
+      - -c
+      - model_reasoning_effort="max"
+    tab: coordinator
+    mission: Own delegation, cross-functional integration, final verification, and founder-facing handoff
+    handles:
+      - team composition and task routing
+      - cross-functional reconciliation and decision escalation
+      - integration and final verification
+    output: Return the integrated outcome, verification performed, blockers, and next action
+    can_spawn: true
+    parallel: false
+
+  - name: designer
+    role: product-design
+    kind: codex
+    model: gpt-5.6-luna
+    launch_args:
+      - --model
+      - gpt-5.6-luna
+      - -c
+      - model_reasoning_effort="max"
+    tab: designer
+    mission: Shape Alzette's interface, information architecture, and visual system
+    handles:
+      - client dashboard information architecture and interaction design
+      - truthful health, freshness, usage, and execution-state communication
+      - responsive and WCAG-oriented interface implementation
+      - design-system consistency
+    delegate_when:
+      - a task changes a user-facing interface or journey
+      - a design critique or visual decision is needed
+    avoid_when:
+      - the task is backend-only or primarily commercial research
+    output: Return design rationale, changed files, visual checks, blockers, and recommendations
+    can_spawn: false
+    parallel: true
+
+  - name: frontend
+    role: frontend-implementation
+    kind: codex
+    model: gpt-5.6-sol
+    launch_args:
+      - --model
+      - gpt-5.6-sol
+      - -c
+      - model_reasoning_effort="high"
+      - --search
+    tab: frontend
+    mission: Own Alzette's accessible, server-rendered frontend architecture and implementation with Go-served HTML, modular CSS, and minimal browser JavaScript
+    handles:
+      - Go-native HTML rendering, view models, templates, fragments, and progressive enhancement
+      - frontend utility and library evaluation using current primary-source evidence
+      - modular semantic HTML, CSS architecture, and small browser-native JavaScript modules
+      - portal performance, accessibility, responsive behavior, CSP compatibility, and frontend testing seams
+      - migration away from monolithic portal HTML and JavaScript without changing product truth
+    delegate_when:
+      - a task selects or implements frontend architecture, Go UI utilities, templates, HTML-over-the-wire, CSS, or browser JavaScript
+      - a user-facing implementation needs translation from approved product design into maintainable frontend code
+      - portal.html, portal.js, portal.css, login.html, login.css, index.html, docs.html, or site.css require architectural frontend work
+    avoid_when:
+      - the task is exploratory visual direction without an implementation objective
+      - the task is backend-only, primarily product strategy, or final independent review of the frontend's own implementation
+    output: Return the recommendation or implementation outcome, evaluated alternatives and primary sources, changed files, browser/accessibility checks, blockers, and residual risks
+    can_spawn: false
+    parallel: true
+
+  - name: reviewer
+    role: code-review
+    kind: codex
+    model: gpt-5.6-luna
+    launch_args:
+      - --model
+      - gpt-5.6-luna
+      - -c
+      - model_reasoning_effort="max"
+    tab: reviewer
+    mission: Find correctness, security, maintainability, and regression risks before integration
+    handles:
+      - code and architecture review
+      - tenant-routing, credential, privacy, and target-boundary security review
+      - logical-request versus provider-attempt accounting review
+      - failure-mode and regression analysis
+      - regression risk assessment
+    delegate_when:
+      - implementation changes are ready for independent review
+      - a risky technical decision needs a second opinion
+    avoid_when:
+      - the task is pure visual design or commercial research
+    output: Return prioritized findings with evidence, verification performed, blockers, and residual risks
+    can_spawn: false
+    parallel: true
+
+  - name: qa-tester
+    role: quality-assurance
+    kind: codex
+    model: gpt-5.6-luna
+    launch_args:
+      - --model
+      - gpt-5.6-luna
+      - -c
+      - model_reasoning_effort="max"
+    tab: qa-tester
+    mission: Verify Alzette's behavior across automated, browser, responsive, and failure-path checks
+    handles:
+      - unit, HTTP-contract, integration, database, and race-test planning
+      - tenant-isolation, retry, partial-usage, timeout, and failure-path verification
+      - browser, accessibility, and responsive validation
+      - Docker Compose, migration, backup/restore, and regression verification
+    delegate_when:
+      - user-visible or API behavior changes
+      - a bug needs independent reproduction or verification
+    avoid_when:
+      - the task is exploratory design or commercial research
+    output: Return scenarios tested, results, evidence, blockers, and untested risks
+    can_spawn: false
+    parallel: true
+
+  - name: platform-engineer
+    role: platform-implementation
+    kind: codex
+    model: gpt-5.6-sol
+    launch_args:
+      - --model
+      - gpt-5.6-sol
+      - -c
+      - model_reasoning_effort="max"
+    tab: platform-engineer
+    mission: Own the tested Go implementation of Alzette's gateway, control plane, usage ledger, and single-machine deployment
+    handles:
+      - OpenAI-compatible gateway and OpenRouter target adapter
+      - tenant-safe route, credential, request, attempt, and usage data models
+      - PostgreSQL migrations, rollups, and operator provisioning
+      - Docker Compose, health, telemetry, and vertical-slice integration
+      - backend unit, contract, integration, race, and failure-path tests
+    delegate_when:
+      - a task implements or changes the gateway, control API, persistence, metering, or deployment
+      - an end-to-end vertical slice or backend test harness is needed
+    avoid_when:
+      - the task is pure visual design or commercial research
+      - the task is exploratory serving or fine-tuning research without an approved implementation objective
+      - the task is final independent review of the platform-engineer's own implementation
+    output: Return the outcome, changed files, migrations/API contracts, tests run, blockers, and residual risks
+    can_spawn: false
+    parallel: true
+
+  - name: product-owner
+    role: product-management
+    kind: codex
+    model: gpt-5.6-sol
+    launch_args:
+      - --model
+      - gpt-5.6-sol
+      - -c
+      - model_reasoning_effort="high"
+    tab: product-owner
+    mission: Define Alzette's product boundaries, customer fit, requirements, and development priorities
+    handles:
+      - customer problems, workflows, desired outcomes, and product fit
+      - product boundaries, offers, service modes, and capability definitions
+      - PRDs, acceptance criteria, roadmap priorities, dependencies, and sequencing
+      - reconciliation of PRODUCT, boundary, portal, endpoint, onboarding, and workforce contracts
+      - translating validated customer, market, and technical-research evidence into product decisions without overfitting one prospect
+    delegate_when:
+      - a task asks what Alzette should build, offer, defer, or explicitly exclude
+      - a client need must become a clear product requirement or acceptance criterion
+      - a PRD, roadmap, release slice, priority, or scope boundary must be created or reconciled
+      - product documents conflict or implementation risks drifting beyond the agreed product
+    avoid_when:
+      - the task is branding, marketing copy, prospecting, sales outreach, grants, or funding
+      - the task is primarily implementation, visual design, code review, or test execution
+      - a commercial, contractual, legal, or external commitment requires founder approval
+    output: Return the product decision or recommendation, customer evidence and assumptions, in-scope and out-of-scope boundaries, prioritised requirements, acceptance criteria, dependencies, open decisions, and blockers
+    can_spawn: false
+    parallel: true
+
+  - name: researcher
+    role: applied-model-research
+    kind: codex
+    model: gpt-5.6-sol
+    launch_args:
+      - --model
+      - gpt-5.6-sol
+      - -c
+      - model_reasoning_effort="high"
+      - --search
+    tab: researcher
+    mission: Maintain current evidence-based guidance for serving, adapting, fine-tuning, and evaluating models for private enterprise use
+    handles:
+      - inference serving engines, batching, caching, quantisation, parallelism, scheduling, observability, throughput, latency, capacity, and cost practices
+      - fine-tuning and adaptation methods, including data curation, supervised tuning, parameter-efficient tuning, preference optimisation, evaluation, and rollback
+      - customer model-readiness requirements covering use-case definition, data sources, rights, provenance, quality, labels, representative holdouts, subject-matter experts, governance, privacy, residency, and feedback loops
+      - model, runtime, accelerator, licence, safety, and deployment-boundary compatibility
+      - reproducible benchmark and experiment design for shared and dedicated inference
+      - periodic technical landscape briefs from current research papers, official documentation, release notes, and implementation evidence
+    delegate_when:
+      - a task asks how Alzette should serve, optimise, benchmark, evaluate, adapt, or fine-tune a model
+      - a product or platform decision depends on current model-serving or training evidence
+      - a customer needs a data, evaluation, governance, or operational readiness plan for model adaptation
+      - a new model, inference engine, fine-tuning method, accelerator, or optimisation may materially change quality, capacity, cost, or risk
+    avoid_when:
+      - the task asks for the authoritative product boundary, commercial offer, roadmap priority, or final go/no-go decision
+      - the task is production implementation, interface design, sales positioning, prospecting, grants, or funding
+      - a vendor benchmark or paper result cannot be separated from reproducible Alzette evidence and its exact model, hardware, dataset, workload, and version
+      - customer data, private artefacts, paid resources, external accounts, or external communication would be used without explicit approval
+    output: Return a dated evidence-linked research brief prioritising primary sources, source and benchmark limitations, recommendation and alternatives, quality/capacity/cost/security trade-offs, required customer data and governance, evaluation and experiment plan, confidence and staleness, open questions, and blockers
+    can_spawn: false
+    parallel: true
+
+  - name: growth-strategist
+    role: market-fit-and-funding
+    kind: codex
+    model: gpt-5.6-luna
+    launch_args:
+      - --model
+      - gpt-5.6-luna
+      - -c
+      - model_reasoning_effort="max"
+      - --search
+    tab: growth-strategist
+    mission: Build demand and funding for Alzette through credible positioning, client discovery, partnerships, grants, and financing opportunities
+    handles:
+      - brand positioning, marketing narrative, and go-to-market experiments
+      - target-client identification, segmentation, prospecting, and discovery evidence
+      - funding, grants, accelerators, partnerships, and ecosystem programmes
+      - competitor and market analysis for commercial positioning
+      - pitch, application, campaign, and sales-enablement language
+    delegate_when:
+      - a task asks how to position, market, sell, or fund Alzette
+      - target clients, market evidence, partnerships, or a customer-discovery plan are needed
+      - an application, pitch, campaign, or grant narrative is needed
+      - commercial claims need evidence or validation
+    avoid_when:
+      - the task is primarily software implementation, code review, QA, or interface design
+      - the task is technical model-serving, fine-tuning, evaluation, or data-readiness research
+      - the task asks for the authoritative product boundary, PRD, roadmap priority, or acceptance criteria
+      - an external form, application, message, or commitment must be submitted without explicit user approval
+    output: Return an evidence-linked recommendation, assumptions, application-ready language, gaps, next experiments, blockers, and follow-up opportunities
+    can_spawn: false
+    parallel: true
