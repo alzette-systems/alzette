@@ -9,10 +9,14 @@ gates defined by the product boundary.
 
 Owned by Product.
 
-- [`product/PRODUCT.md`](product/PRODUCT.md) — concise product contract,
-  target customers, offer, boundaries, and evidence inventory.
+- [`product/PRODUCT.md`](product/PRODUCT.md) — authoritative, technology-neutral
+  product feature contract: target users, modules, supported features,
+  dependencies, and boundaries.
 - [`product/POC_BOUNDARY.md`](product/POC_BOUNDARY.md) — controlling statement
   of what the current proof of concept does and does not prove.
+- [`product/DELIVERY_MAP.md`](product/DELIVERY_MAP.md) — product-to-code
+  traceability: implementation state, fit, evidence, remaining gaps, and
+  delivery sequencing.
 
 ## Product requirements
 
@@ -49,9 +53,10 @@ Owned independently by QA and Review.
 ## Authority and annotations
 
 For current capability claims, `product/POC_BOUNDARY.md` controls. For target
-product scope, `product/PRODUCT.md` and the relevant PRD control. Growth copy
-cannot expand the product boundary, and assurance documents report evidence
-rather than define product scope.
+product scope, `product/PRODUCT.md` controls. Focused PRDs translate that
+contract into delivery requirements and acceptance criteria; they cannot
+silently expand it. Growth copy cannot expand the product boundary, and
+assurance documents report evidence rather than define product scope.
 
 Make proposed edits directly when the intended wording is known. For a private
 inline review note that should not render, use:
