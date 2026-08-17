@@ -13,3 +13,7 @@
 
 /alzette
 coverage.out
+
+# Retained local reference for the superseded pre-portal dashboard prototype.
+/dashboard.html
+/dashboard.css
