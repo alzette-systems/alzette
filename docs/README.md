@@ -41,6 +41,12 @@ claims.
 - [`growth/CUSTOMER_PRESENTATION.md`](growth/CUSTOMER_PRESENTATION.md)
 - [`growth/MELUXINA_AI_SPEECH.md`](growth/MELUXINA_AI_SPEECH.md)
 - [`growth/MARKET_FIT.md`](growth/MARKET_FIT.md)
+- [`growth/CLIENT_SOFTWARE_MIGRATION_FIT.md`](growth/CLIENT_SOFTWARE_MIGRATION_FIT.md)
+  — evidence brief for migrating customer-owned applications to an Alzette
+  inference boundary.
+- [`growth/CORPORATE_AI_RUNTIME_FIT.md`](growth/CORPORATE_AI_RUNTIME_FIT.md)
+  — integration guidance for employee-facing software and existing workplace
+  runtimes.
 - [`growth/copy.md`](growth/copy.md)
 
 ## Assurance
