@@ -1,0 +1,156 @@
+name: alzette-poc
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-alzette}
+      POSTGRES_USER: ${POSTGRES_USER:-alzette}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+    volumes:
+      - alzette-postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  migrate:
+    image: alzette-poc:local
+    build:
+      context: .
+    command: ["migrate"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-alzette}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-alzette}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  gateway:
+    image: alzette-poc:local
+    command: ["gateway", "--addr", ":8080"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-alzette}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-alzette}?sslmode=disable
+      OPENROUTER_API_KEY_FILE: /run/secrets/openrouter_api_key
+      DEEPSEEK_API_KEY_FILE: /run/secrets/deepseek_api_key
+      ALZETTE_PROVIDER_SECRET_REFS: ${ALZETTE_PROVIDER_SECRET_REFS:-OPENROUTER_API_KEY,DEEPSEEK_API_KEY}
+      ALZETTE_ALLOW_INSECURE_TARGETS: ${ALZETTE_ALLOW_INSECURE_TARGETS:-false}
+    secrets:
+      - openrouter_api_key
+      - deepseek_api_key
+    ports:
+      - "${ALZETTE_HTTP_BIND_ADDRESS:-127.0.0.1}:${ALZETTE_GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/alzette", "healthcheck", "--url", "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    restart: unless-stopped
+
+  control:
+    image: alzette-poc:local
+    command: ["control", "--addr", ":8081", "--static-dir", "/app/portal"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-alzette}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-alzette}?sslmode=disable
+      ALZETTE_PUBLIC_GATEWAY_URL: ${ALZETTE_PUBLIC_GATEWAY_URL:-http://127.0.0.1:8080}
+      ALZETTE_ALLOW_INSECURE_PUBLIC_GATEWAY: ${ALZETTE_ALLOW_INSECURE_PUBLIC_GATEWAY:-true}
+      ALZETTE_PORTAL_COOKIE_SECURE: ${ALZETTE_PORTAL_COOKIE_SECURE:-false}
+      ALZETTE_PORTAL_SESSION_TTL: ${ALZETTE_PORTAL_SESSION_TTL:-12h}
+      ALZETTE_BILLING_PROVIDER: ${ALZETTE_BILLING_PROVIDER:-disabled}
+      STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
+      ALZETTE_BILLING_SUCCESS_URL: ${ALZETTE_BILLING_SUCCESS_URL:-}
+      ALZETTE_BILLING_CANCEL_URL: ${ALZETTE_BILLING_CANCEL_URL:-}
+      ALZETTE_BILLING_RETURN_URL: ${ALZETTE_BILLING_RETURN_URL:-}
+    secrets:
+      - stripe_secret_key
+    ports:
+      - "${ALZETTE_HTTP_BIND_ADDRESS:-127.0.0.1}:${ALZETTE_CONTROL_PORT:-8081}:8081"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/alzette", "healthcheck", "--url", "http://127.0.0.1:8081/readyz"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    restart: unless-stopped
+
+  billing-webhook:
+    image: alzette-poc:local
+    command: ["billing-webhook", "--addr", ":8083"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-alzette}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-alzette}?sslmode=disable
+      ALZETTE_BILLING_PROVIDER: ${ALZETTE_BILLING_PROVIDER:-disabled}
+      STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook_secret
+      ALZETTE_STRIPE_ALLOW_LIVE_MODE: ${ALZETTE_STRIPE_ALLOW_LIVE_MODE:-false}
+    secrets:
+      - stripe_webhook_secret
+    ports:
+      - "${ALZETTE_BILLING_WEBHOOK_BIND_ADDRESS:-127.0.0.1}:${ALZETTE_BILLING_WEBHOOK_PORT:-8083}:8083"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/alzette", "healthcheck", "--url", "http://127.0.0.1:8083/readyz"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    restart: unless-stopped
+
+  public:
+    image: alzette-poc:local
+    command: ["public", "--addr", ":8082", "--static-dir", "/app/public"]
+    environment:
+      ALZETTE_PUBLIC_PORTAL_URL: ${ALZETTE_PUBLIC_PORTAL_URL:-http://127.0.0.1:8081/login}
+    ports:
+      - "${ALZETTE_HTTP_BIND_ADDRESS:-127.0.0.1}:${ALZETTE_PUBLIC_PORT:-8082}:8082"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/alzette", "healthcheck", "--url", "http://127.0.0.1:8082/readyz"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    restart: unless-stopped
+
+  worker:
+    image: alzette-poc:local
+    command: ["worker", "--rollup-interval", "${ALZETTE_ROLLUP_INTERVAL:-1m}", "--rollup-lookback", "${ALZETTE_ROLLUP_LOOKBACK:-48h}"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-alzette}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-alzette}?sslmode=disable
+      OPENROUTER_API_KEY_FILE: /run/secrets/openrouter_api_key
+      DEEPSEEK_API_KEY_FILE: /run/secrets/deepseek_api_key
+      ALZETTE_PROVIDER_SECRET_REFS: ${ALZETTE_PROVIDER_SECRET_REFS:-OPENROUTER_API_KEY,DEEPSEEK_API_KEY}
+      ALZETTE_ALLOW_INSECURE_TARGETS: ${ALZETTE_ALLOW_INSECURE_TARGETS:-false}
+      ALZETTE_ENABLE_TARGET_PROBES: ${ALZETTE_ENABLE_TARGET_PROBES:-false}
+    secrets:
+      - openrouter_api_key
+      - deepseek_api_key
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/alzette", "worker-health", "--maximum-age", "${ALZETTE_WORKER_HEALTH_MAXIMUM_AGE:-5m}"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  alzette-postgres:
+
+secrets:
+  openrouter_api_key:
+    file: ${OPENROUTER_API_KEY_SECRET_FILE:-/dev/null}
+  deepseek_api_key:
+    file: ${DEEPSEEK_API_KEY_SECRET_FILE:-/dev/null}
+  stripe_secret_key:
+    file: ${STRIPE_SECRET_KEY_SECRET_FILE:-/dev/null}
+  stripe_webhook_secret:
+    file: ${STRIPE_WEBHOOK_SECRET_SECRET_FILE:-/dev/null}

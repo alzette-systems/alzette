@@ -1,0 +1,65 @@
+services:
+  gateway:
+    environment:
+      ALZETTE_ALLOW_INSECURE_TARGETS: "true"
+      ALZETTE_PROVIDER_SECRET_REFS: OPENROUTER_API_KEY,SLICE0_FAKE_TARGET_KEY
+      SLICE0_FAKE_TARGET_KEY_FILE: /run/secrets/slice0_fake_target_key
+    secrets:
+      - openrouter_api_key
+      - slice0_fake_target_key
+
+  fake-target:
+    profiles: [slice0]
+    image: alzette-poc:local
+    command:
+      - fake-target
+      - --addr
+      - :8090
+      - --secret-ref
+      - SLICE0_FAKE_TARGET_KEY
+      - --provider-model
+      - deterministic/slice0-v1
+      - --timeout-first
+      - "1"
+    environment:
+      SLICE0_FAKE_TARGET_KEY_FILE: /run/secrets/slice0_fake_target_key
+    secrets:
+      - slice0_fake_target_key
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/alzette", "healthcheck", "--url", "http://127.0.0.1:8090/readyz"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    restart: "no"
+
+  slice0-smoke:
+    profiles: [slice0]
+    image: alzette-poc:local
+    command:
+      - slice0-smoke
+      - --gateway-url
+      - http://gateway:8080
+      - --target-base-url
+      - http://fake-target:8090/v1
+      - --provider-model
+      - deterministic/slice0-v1
+      - --secret-ref
+      - SLICE0_FAKE_TARGET_KEY
+      - --expected-output
+      - SLICE0_COMPATIBLE_OK
+      - --target-timeout
+      - 200ms
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-alzette}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-alzette}?sslmode=disable
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      gateway:
+        condition: service_healthy
+      fake-target:
+        condition: service_healthy
+    restart: "no"
+
+secrets:
+  slice0_fake_target_key:
+    file: ./internal/faketarget/testdata/fake-provider-token.txt
