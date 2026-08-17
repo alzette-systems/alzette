@@ -1,559 +1,418 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alzette Systems — Private AI endpoints for Luxembourg's financial centre</title>
-<meta name="description" content="OpenAI-compatible inference APIs for confidential workloads, with dedicated capacity, predictable usage, stable model versions, and a clear operational SLA.">
-<meta property="og:title" content="Alzette Systems — Private AI endpoints for Luxembourg's financial centre">
-<meta property="og:description" content="OpenAI-compatible inference APIs for confidential workloads, with dedicated capacity, predictable usage, stable model versions, and a clear operational SLA.">
-<meta property="og:type" content="website">
-<link rel="icon" href="alzette-mark.svg" type="image/svg+xml">
-<link rel="stylesheet" href="site.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alzette Systems — Private AI infrastructure for Luxembourg finance</title>
+  <meta name="description" content="Dedicated, locally operated AI inference for asset managers, fund administrators, banks, insurers, and regulated financial organisations in Luxembourg.">
+  <meta property="og:title" content="Alzette Systems — Private AI infrastructure for Luxembourg finance">
+  <meta property="og:description" content="Use AI on confidential work through a private, dedicated inference environment operated in Luxembourg.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="/alzette-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/site.css">
 </head>
-<body>
+<body class="marketing-page">
+  <!--
+  THESIS: Alzette is the missing middle between public AI tools and operating a GPU platform internally; the page refuses a product-status report.
+  OWN-WORLD: a Luxembourg service charter in paper, ink, river green, ruled ledgers, and the Alzette river mark.
+  STORY: a financial-industry decision-maker recognises the confidentiality problem, understands the private operating model, sees the governance path, and discusses one pilot workload.
+  FIRST VIEWPORT: the finished offer and action lead; a responsibility charter proves who controls what without technical release language.
+  FORM: established-world restoration of the original persuasive landing structure, refined around the dedicated local offer; no concept seed required.
+  -->
 
-<!--
-THESIS: The hero states the promise in one compact line, then proves the operating model with the responsibility table — who decides versus who operates. No illustration, no terminal: type and one document table.
-OWN-WORLD: the incumbent system — paper ground, ink type, mono reserved for data and measurement, one green accent, the river mark.
-STORY: A financial-centre decision-maker reads one line, sees control spelled out contractually in the table below, and requests access.
-FIRST VIEWPORT: full-width headline, lead, two CTAs, fact line — then the responsibility table (your organisation decides / Alzette operates) spanning the container.
-FORM: established-world section reshape; no concept roll (local extension per new-work §3). Seed key: none.
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md.
--->
+  <a class="skip-link" href="#main">Skip to content</a>
 
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="alzette-river" viewBox="0 0 512 512">
-    <rect width="512" height="512" rx="92" fill="#10151a"/>
-    <path d="M244.81 420.00 L249.59 411.56 L278.39 390.86 L284.46 372.18 L301.24 354.30 L297.20 335.01 L302.58 320.99 L311.87 311.42 L335.45 305.61 L341.20 290.80 L334.69 283.77 L329.23 285.62 L320.62 281.60 L304.98 266.86 L292.02 296.88 L238.90 317.42 L227.04 306.19 L226.66 300.42 L253.94 274.71 L253.32 267.60 L242.72 267.58 L223.13 258.48 L206.59 272.67 L200.32 272.56 L194.27 267.54 L190.89 258.09 L193.49 251.05 L219.73 244.45 L228.08 232.69 L220.24 227.30 L192.56 236.22 L178.03 222.10 L173.80 201.73 L179.22 175.57 L172.13 159.55 L170.80 144.91 L192.23 119.83 L196.27 107.38 L191.15 92.00" fill="none" stroke="#0d9e63" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
-  </symbol>
-</svg>
-
-<div class="announce">
-  <div class="container">
-    <span class="dot"></span>
-    <span>PRIVATE INFERENCE PILOT · LUXEMBOURG</span>
-    <a href="#contact">Request access →</a>
-  </div>
-</div>
-
-<header>
-  <div class="container header-inner">
-    <a class="logo" href="#"><svg class="logo-mark" aria-hidden="true"><use href="#alzette-river"/></svg>alzette<span>.systems</span></a>
-    <nav class="main-nav">
-      <a href="#product">Product</a>
-      <a href="#security">Security</a>
-      <a href="#models">Models</a>
-      <a href="docs.html">Documentation</a>
-      <a href="#contact">Contact</a>
-    </nav>
-    <div>
-      <a href="#contact" class="btn btn-primary btn-small">Request access</a>
+  <div class="announcement">
+    <div class="shell announcement-inner">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span>Private AI inference for Luxembourg’s financial industry</span>
+      <a href="#contact">Discuss a pilot</a>
     </div>
   </div>
-</header>
 
-<main>
-<!-- Hero -->
-<section class="hero">
-  <div class="container">
-    <h1>Frontier models, in Luxembourg.</h1>
-    <p class="lead">Dedicated inference infrastructure for the financial sector — contractual Luxembourg hosting, your approved model catalogue, and control that stays with your organisation.</p>
-    <div class="hero-actions">
-      <a href="#contact" class="btn btn-primary">Discuss a pilot</a>
-      <a href="#product" class="btn btn-secondary">See how it connects</a>
-    </div>
-    <p class="hero-facts"><span>Luxembourg-based</span><span>Luxembourg-hosted</span><span>Guaranteed contractually</span></p>
-    <div class="resp-panel hero-resp">
-      <div class="resp-head">Your organisation decides</div>
-      <div class="resp-head">Alzette operates</div>
-      <div class="resp-row">Approved workloads and users</div>
-      <div class="resp-row">Private inference endpoint</div>
-      <div class="resp-row">Models and retention policy</div>
-      <div class="resp-row">Capacity and monitoring</div>
-      <div class="resp-row">Budgets and access rules</div>
-      <div class="resp-row">Incidents and technical support</div>
-      <div class="resp-caption">CONTROL STAYS WITH YOU — OPERATIONS STAY WITH US</div>
-    </div>
-  </div>
-</section>
-
-<!-- Stack strip -->
-<div class="stack-strip">
-  <div class="container">
-    <span class="stack-label">Works with your stack</span>
-    <div class="stack-items">
-      <span>OpenAI SDK</span>
-      <span>REST / cURL</span>
-      <span>Python</span>
-      <span>Node.js</span>
-      <span>Your existing applications</span>
-    </div>
-  </div>
-</div>
-
-<!-- The problem -->
-<section class="alt">
-  <div class="container">
-    <div class="section-head">
-      <h2>AI adoption should not require a new risk category.</h2>
-      <div class="eyebrow">The problem</div>
-    </div>
-    <p class="section-lead">Teams across Luxembourg's financial centre work with sensitive financial, payroll, tax, corporate, and personal information. They also have repetitive work where modern language and document models can save time.</p>
-    <p class="muted" style="margin-top: 30px;">The usual choices are uncomfortable:</p>
-    <ul class="problem-list">
-      <li>prohibit AI and lose the productivity benefit;</li>
-      <li>let employees choose public tools without a consistent control layer;</li>
-      <li>build and operate GPU infrastructure internally;</li>
-      <li>accept a large cloud relationship for a relatively small workload.</li>
-    </ul>
-    <p class="muted" style="max-width: 640px;">Alzette provides the missing middle: production-ready private endpoints that your existing tools can call.</p>
-    <div class="closing-line">No new employee product to roll out. No GPU cluster for your team to operate. Just a controlled inference service behind the applications you already use.</div>
-  </div>
-</section>
-
-<!-- Code snippet -->
-<section id="endpoint">
-  <div class="container code-grid">
-    <div>
-      <div class="section-head">
-        <h2>Drop in the endpoint. Keep your existing application.</h2>
-        <div class="eyebrow">For your developers</div>
-      </div>
-      <p class="section-lead">If your application already uses the OpenAI SDK, integration requires a base URL, an API key, and an approved model identifier — not a rewrite. Tools that cannot point to a custom endpoint can be connected by your IT partner or integrator as part of onboarding.</p>
-      <div class="hero-actions" style="margin-top: 32px;">
-        <a href="docs.html" class="btn btn-secondary">Read the API docs</a>
-      </div>
-    </div>
-    <div class="code-block">
-      <div class="code-label">Python · OpenAI SDK</div>
-      <pre><code><span class="tok-kw">import</span> os
-
-<span class="tok-kw">from</span> openai <span class="tok-kw">import</span> OpenAI
-
-client = <span class="tok-fn">OpenAI</span>(
-    base_url=<span class="tok-str">"https://api.alzette.lu/v1"</span>,
-    api_key=os.environ[<span class="tok-str">"ALZETTE_API_KEY"</span>],
-)
-
-response = client.chat.completions.<span class="tok-fn">create</span>(
-    model=<span class="tok-str">"approved-text-model"</span>,
-    messages=[
-        {<span class="tok-str">"role"</span>: <span class="tok-str">"user"</span>, <span class="tok-str">"content"</span>: <span class="tok-str">"Summarise this document."</span>}
-    ],
-)
-
-<span class="tok-fn">print</span>(response.choices[<span class="tok-str">0</span>].message.content)</code></pre>
-      <div class="code-caption">Use the OpenAI SDK and point it at Alzette. Choose approved models from your organisation's model catalogue.</div>
-    </div>
-  </div>
-</section>
-
-<!-- The controlled endpoint (dark) -->
-<section class="dark" id="product">
-  <div class="container">
-    <div class="section-head">
-      <h2>A controlled endpoint, operated locally.</h2>
-      <div class="eyebrow">The endpoint</div>
-    </div>
-    <p class="section-lead">Alzette gives your developers and IT partners a stable interface to approved inference capacity — and makes the operational layer visible to the people responsible for your systems. The organisation decides who can call it, which models are available, how long data is retained, and how much can be spent.</p>
-    <div class="diagram" style="max-width: 560px; margin: 48px auto 0;">
-      <svg viewBox="0 0 520 460" role="img" aria-label="Diagram: your application connects to the Alzette gateway, which routes to approved models running on private GPU capacity.">
-        <defs>
-          <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
-            <path d="M0,0 L8,4 L0,8 Z" fill="#55606b"/>
-          </marker>
-        </defs>
-
-        <!-- flow boxes -->
-        <rect x="130" y="12" width="260" height="58" rx="6" fill="#ffffff" stroke="#e4e1d9"/>
-        <text x="260" y="36" text-anchor="middle" font-family="monospace" font-size="11" letter-spacing="2" fill="#6b7480">YOUR STACK</text>
-        <text x="260" y="56" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="600" fill="#10151a">Application</text>
-
-        <line x1="260" y1="70" x2="260" y2="112" stroke="#55606b" stroke-width="1.2" marker-end="url(#arrow)"/>
-
-        <rect x="130" y="120" width="260" height="70" rx="6" fill="#10151a"/>
-        <rect x="130" y="120" width="260" height="70" rx="6" fill="none" stroke="#0d9e63" stroke-width="1.4"/>
-        <text x="260" y="149" text-anchor="middle" font-family="monospace" font-size="11" letter-spacing="2" fill="#6fd3a0">ALZETTE</text>
-        <text x="260" y="170" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="600" fill="#ffffff">Gateway</text>
-
-        <line x1="260" y1="190" x2="260" y2="232" stroke="#55606b" stroke-width="1.2" marker-end="url(#arrow)"/>
-
-        <rect x="130" y="240" width="260" height="58" rx="6" fill="#ffffff" stroke="#e4e1d9"/>
-        <text x="260" y="264" text-anchor="middle" font-family="monospace" font-size="11" letter-spacing="2" fill="#6b7480">CATALOGUE</text>
-        <text x="260" y="284" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="600" fill="#10151a">Approved models</text>
-
-        <line x1="260" y1="298" x2="260" y2="340" stroke="#55606b" stroke-width="1.2" marker-end="url(#arrow)"/>
-
-        <rect x="130" y="348" width="260" height="58" rx="6" fill="#ffffff" stroke="#e4e1d9"/>
-        <text x="260" y="372" text-anchor="middle" font-family="monospace" font-size="11" letter-spacing="2" fill="#6b7480">CAPACITY</text>
-        <text x="260" y="392" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="600" fill="#10151a">Private GPU capacity</text>
-
-        <!-- floating config labels, left -->
-        <g class="diagram-pills">
-        <line x1="130" y1="140" x2="86" y2="140" stroke="#c8c4b8" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cx="130" cy="140" r="3" fill="#0d9e63"/>
-        <rect x="2" y="126" width="80" height="28" rx="14" fill="#faf9f6" stroke="#e4e1d9"/>
-        <text x="42" y="137" text-anchor="middle" font-family="monospace" font-size="10" letter-spacing="0.5" fill="#55606b">TENANT-</text>
-        <text x="42" y="148" text-anchor="middle" font-family="monospace" font-size="10" letter-spacing="0.5" fill="#55606b">ISOLATED</text>
-
-        <line x1="130" y1="172" x2="86" y2="196" stroke="#c8c4b8" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cx="130" cy="172" r="3" fill="#0d9e63"/>
-        <rect x="2" y="182" width="80" height="28" rx="14" fill="#faf9f6" stroke="#e4e1d9"/>
-        <text x="42" y="193" text-anchor="middle" font-family="monospace" font-size="10" letter-spacing="0.5" fill="#55606b">BUDGET:</text>
-        <text x="42" y="204" text-anchor="middle" font-family="monospace" font-size="10" letter-spacing="0.5" fill="#55606b">ENFORCED</text>
-
-        <!-- floating config labels, right -->
-        <line x1="390" y1="140" x2="434" y2="140" stroke="#c8c4b8" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cx="390" cy="140" r="3" fill="#0d9e63"/>
-        <rect x="438" y="126" width="80" height="28" rx="14" fill="#faf9f6" stroke="#e4e1d9"/>
-        <text x="478" y="137" text-anchor="middle" font-family="monospace" font-size="10" letter-spacing="0.5" fill="#55606b">OPENAI-</text>
-        <text x="478" y="148" text-anchor="middle" font-family="monospace" font-size="10" letter-spacing="0.5" fill="#55606b">COMPATIBLE</text>
-
-        <line x1="390" y1="172" x2="434" y2="196" stroke="#c8c4b8" stroke-width="1" stroke-dasharray="3 3"/>
-        <circle cx="390" cy="172" r="3" fill="#0d9e63"/>
-        <rect x="438" y="182" width="80" height="28" rx="14" fill="#faf9f6" stroke="#e4e1d9"/>
-        <text x="478" y="193" text-anchor="middle" font-family="monospace" font-size="10" letter-spacing="0.5" fill="#55606b">RETENTION:</text>
-        <text x="478" y="204" text-anchor="middle" font-family="monospace" font-size="10" letter-spacing="0.5" fill="#55606b">POLICY</text>
-        </g>
-      </svg>
-      <div class="diagram-caption">ONE CONTROLLED PATH FROM YOUR APPLICATION TO INFERENCE</div>
-    </div>
-
-    <div class="card-grid cols-3">
-      <div class="card">
-        <div class="card-eyebrow">Data boundaries</div>
-        <h3>Private and tenant-isolated</h3>
-        <p>Requests are processed through controlled, tenant-isolated infrastructure — separate credentials, quotas, usage records, and policies per organisation. Prompt and response content is not retained by default unless an agreed policy requires it.</p>
-      </div>
-      <div class="card">
-        <div class="card-eyebrow">Integration</div>
-        <h3>OpenAI-compatible API</h3>
-        <p>Use familiar SDKs, streaming responses, structured outputs, embeddings, and standard HTTP tooling. Move an existing integration without rebuilding your application around a new product.</p>
-      </div>
-      <div class="card">
-        <div class="card-eyebrow">Cost control</div>
-        <h3>Budgets and hard caps</h3>
-        <p>Set organisation- and project-level budgets, quotas, rate limits, and hard monthly caps before the first request is made. See tokens and spend by organisation, user, application, or API key.</p>
-      </div>
-      <div class="card">
-        <div class="card-eyebrow">Change control</div>
-        <h3>Stable model releases</h3>
-        <p>Models are versioned, changes are communicated, and release records are kept. Production integrations do not silently move to a different model or behaviour.</p>
-      </div>
-      <div class="card">
-        <div class="card-eyebrow">Operational evidence</div>
-        <h3>Reliability you can inspect</h3>
-        <p>Published service levels, health and status visibility, request, latency, error, and capacity metrics, and usage exports for finance, operations, and internal review.</p>
-      </div>
-      <div class="card">
-        <div class="card-eyebrow">Accountability</div>
-        <h3>Someone responsible</h3>
-        <p>Named technical support, incident procedures, and clear maintenance and change communication — a local provider that understands the cost of an unreliable dependency.</p>
-      </div>
-    </div>
-    <div style="margin-top: 44px;">
-      <a href="#contact" class="btn btn-outline-light">Ask for the service specification</a>
-      <p class="faint" style="margin-top: 22px; max-width: 62ch;">Production commitments, retention periods, data location, and model availability are defined in the applicable service agreement and technical documentation.</p>
-    </div>
-  </div>
-</section>
-
-<!-- Capacity options -->
-<section>
-  <div class="container">
-    <div class="section-head">
-      <h2>Start small. Reserve what production needs.</h2>
-      <div class="eyebrow">Capacity</div>
-    </div>
-    <p class="section-lead">Choose the capacity model that matches your workload. Every option uses the same API and operational controls.</p>
-    <div class="card-grid cols-3">
-      <div class="card">
-        <div class="card-eyebrow">Evaluate</div>
-        <h3>Pilot</h3>
-        <p>For evaluating a model, integration, or internal workload — on shared capacity with a defined usage allowance.</p>
-        <ul>
-          <li>Limited users and applications</li>
-          <li>Defined usage allowance</li>
-          <li>Usage and latency reporting</li>
-          <li>Short onboarding cycle</li>
-        </ul>
-        <a href="#contact" class="btn btn-secondary btn-small">Start a pilot</a>
-      </div>
-      <div class="card featured">
-        <div class="card-eyebrow">Production</div>
-        <h3>Dedicated</h3>
-        <p>Inference capacity allocated to your organisation and isolated from other tenants — for production workloads that need predictable performance.</p>
-        <ul>
-          <li>Dedicated inference capacity</li>
-          <li>Tenant-specific limits and policies</li>
-          <li>Production support</li>
-          <li>Agreed service level</li>
-        </ul>
-        <a href="#contact" class="btn btn-small" style="border-color:#fff;color:#fff;">Discuss dedicated capacity</a>
-      </div>
-      <div class="card">
-        <div class="card-eyebrow">Committed</div>
-        <h3>Reserved</h3>
-        <p>A fixed minimum capacity allocation, held for your organisation over a contractual term — for teams that need guaranteed availability and predictable budgeting.</p>
-        <ul>
-          <li>Guaranteed minimum capacity</li>
-          <li>Held for a contractual term</li>
-          <li>Capacity and spend planning</li>
-          <li>Contracted service level</li>
-        </ul>
-        <a href="#contact" class="btn btn-secondary btn-small">Plan reserved capacity</a>
-      </div>
-    </div>
-    <p class="faint" style="margin-top: 30px; max-width: 62ch;">Usage is metered by tokens and other agreed resources. Your account can enforce hard spending limits, and production contracts can include a fixed platform commitment for predictable budgeting.</p>
-  </div>
-</section>
-
-<!-- Models and compatibility -->
-<section class="alt" id="models">
-  <div class="container">
-    <div class="section-head">
-      <h2>The right model for the workload.</h2>
-      <div class="eyebrow">Models</div>
-    </div>
-    <p class="section-lead">Alzette maintains a curated catalogue of open-weight models selected for practical production use. Each model is presented with its intended use, context limits, supported capabilities, version, and operating characteristics.</p>
-    <p class="muted" style="margin-top: 18px;">Choose for the job — not for the marketing leaderboard.</p>
-    <table class="catalogue-table">
-      <caption>Sneak peek — a selection from the current catalogue.</caption>
-      <thead>
-        <tr><th>Model</th><th>Modalities</th><th>Context</th><th class="tier-col">Tier</th><th class="best-col">Best for</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Kimi K3<span class="flagship-tag">Flagship</span></td>
-          <td class="mod-tags"><span class="mod-tag">text</span><span class="mod-tag">vision</span></td>
-          <td>1M tokens</td>
-          <td class="tier-col">Dedicated · Reserved</td>
-          <td class="best-col">Hardest reasoning and coding — the open-weight benchmark leader</td>
-        </tr>
-        <tr>
-          <td>GLM 5.2</td>
-          <td class="mod-tags"><span class="mod-tag">text</span></td>
-          <td>1,040k tokens</td>
-          <td class="tier-col">Dedicated · Reserved</td>
-          <td class="best-col">Broad reasoning, coding agents, long documents</td>
-        </tr>
-        <tr>
-          <td>DeepSeek V4 Pro</td>
-          <td class="mod-tags"><span class="mod-tag">text</span></td>
-          <td>1,040k tokens</td>
-          <td class="tier-col">Dedicated · Reserved</td>
-          <td class="best-col">Long-context reasoning from a second model family</td>
-        </tr>
-        <tr>
-          <td>DeepSeek V4 Flash</td>
-          <td class="mod-tags"><span class="mod-tag">text</span></td>
-          <td>1,040k tokens</td>
-          <td class="tier-col">Shared · Dedicated</td>
-          <td class="best-col">High-volume long-context routes</td>
-        </tr>
-        <tr>
-          <td>Kimi K2.7 Code</td>
-          <td class="mod-tags"><span class="mod-tag">text</span><span class="mod-tag">vision</span></td>
-          <td>262k tokens</td>
-          <td class="tier-col">Shared · Dedicated</td>
-          <td class="best-col">Repository agents, screenshot-driven dev tools</td>
-        </tr>
-        <tr>
-          <td>MiniMax M3</td>
-          <td class="mod-tags"><span class="mod-tag">text</span><span class="mod-tag">image</span><span class="mod-tag">video</span></td>
-          <td>512k tokens</td>
-          <td class="tier-col">Dedicated</td>
-          <td class="best-col">Native multimodal and media understanding</td>
-        </tr>
-        <tr>
-          <td>Qwen3-VL 30B</td>
-          <td class="mod-tags"><span class="mod-tag">text</span><span class="mod-tag">image</span><span class="mod-tag">docs</span></td>
-          <td>256k tokens</td>
-          <td class="tier-col">Shared · Dedicated</td>
-          <td class="best-col">Visual documents and multilingual OCR</td>
-        </tr>
-        <tr>
-          <td>DeepSeek-OCR</td>
-          <td class="mod-tags"><span class="mod-tag">docs</span></td>
-          <td>—</td>
-          <td class="tier-col">Shared</td>
-          <td class="best-col">High-throughput document digitisation</td>
-        </tr>
-      </tbody>
-    </table>
-    <p class="catalogue-note">Versions, availability tiers, and input/output pricing are shared on request and defined per service agreement. Machine-readable: <code>/catalog.json</code>.</p>
-    <div class="field-tags">
-      <span class="field-tag">text · vision · embedding</span>
-      <span class="field-tag">structured output &amp; tool calling</span>
-      <span class="field-tag">performance profile</span>
-      <span class="field-tag">change &amp; deprecation policy</span>
-    </div>
-    <div class="spec-panel">
-      <div class="card-eyebrow">On request</div>
-      <h3>Model specialization</h3>
-      <p>For larger workloads, Alzette can evaluate confidential model adaptation using customer-approved data. Training data, model artifacts, access, retention, and deletion are governed by the applicable tenant-isolation and contractual controls. Available following a workload and feasibility review.</p>
-    </div>
-    <a href="mailto:hello@alzette.lu?subject=Model%20catalogue" class="btn btn-secondary">Request the model catalogue</a>
-  </div>
-</section>
-
-<!-- Onboarding -->
-<section>
-  <div class="container">
-    <div class="section-head">
-      <h2>From first request to production endpoint.</h2>
-      <div class="eyebrow">Onboarding</div>
-    </div>
-    <div class="steps">
-      <div class="step" data-step="01">
-        <h3>Define the workload</h3>
-        <p>Tell us what you need to run, who will call it, what data it touches, and what response time and volume you expect.</p>
-      </div>
-      <div class="step" data-step="02">
-        <h3>Select the environment</h3>
-        <p>Choose the appropriate model, retention policy, capacity tier, data location, and service level.</p>
-      </div>
-      <div class="step" data-step="03">
-        <h3>Connect your application</h3>
-        <p>Receive credentials, endpoint documentation, model access, and a test environment. Use your existing SDK or HTTP client.</p>
-      </div>
-      <div class="step" data-step="04">
-        <h3>Validate and launch</h3>
-        <p>Test quality, latency, usage, and failure handling. Move to production with agreed limits and operating procedures.</p>
-      </div>
-    </div>
-    <div style="margin-top: 44px;">
-      <a href="#contact" class="btn btn-secondary">Talk to an engineer</a>
-    </div>
-  </div>
-</section>
-
-<!-- Security and data handling -->
-<section class="alt" id="security">
-  <div class="container">
-    <div class="section-head">
-      <h2>Clear answers for confidential workloads.</h2>
-      <div class="eyebrow">Security &amp; data handling</div>
-    </div>
-    <p class="section-lead">Alzette is responsible for the infrastructure layer: controlled execution, tenant isolation, retention limits, and documented operations. Your organisation remains responsible for how its applications and employees use AI — we provide the controls, technical documentation, and operational evidence to evaluate the service and operate it responsibly.</p>
-    <div class="spec-panel">
-      <div class="card-eyebrow">Data residency</div>
-      <h3>Contractual Luxembourg hosting</h3>
-      <p>Inference workloads are hosted in Luxembourg on high-performance European computing infrastructure, and the hosting location is guaranteed contractually. The service agreement defines what the boundary covers: model execution, prompt and response content, logs and usage records, backups, and administrative access. Subprocessors and support access are documented.</p>
-    </div>
-    <div class="card-grid cols-3" style="margin-top: 20px;">
-      <div class="card">
-        <div class="card-eyebrow">Retention</div>
-        <h3>What is retained?</h3>
-        <p>Prompt and response content is not retained by default. Retention, deletion, and logging policies are defined per customer environment and documented in the service agreement.</p>
-      </div>
-      <div class="card">
-        <div class="card-eyebrow">Access</div>
-        <h3>Who can access what?</h3>
-        <p>Credentials, quotas, usage records, and operational policies are isolated per tenant. Administrative and support access is bounded, logged, and documented.</p>
-      </div>
-      <div class="card">
-        <div class="card-eyebrow">Contract</div>
-        <h3>What is guaranteed?</h3>
-        <p>Hosting location, service levels, incident procedures, retention periods, and model availability are defined in the applicable service agreement — not in marketing text.</p>
-      </div>
-    </div>
-    <div style="margin-top: 36px;">
-      <a href="mailto:hello@alzette.lu?subject=Security%20pack" class="btn btn-secondary">Request the security pack</a>
-    </div>
-    <p class="disclaimer">Service level: [TODO: committed availability figure, e.g. 99.9% monthly, per service agreement]. Certifications: [TODO: e.g. ISO 27001 — certified or in progress, with date].</p>
-    <p class="disclaimer">Alzette provides infrastructure and operational controls. It does not provide legal, tax, accounting, or regulatory advice.</p>
-  </div>
-</section>
-
-<!-- Final CTA -->
-<section class="dark final-cta" id="contact" style="border-top: 1px solid var(--dark);">
-  <svg class="cta-mark" aria-hidden="true"><use href="#alzette-river"/></svg>
-  <div class="container">
-    <h2>Give your applications a private inference layer.</h2>
-    <div class="eyebrow" style="justify-content: center; margin-bottom: 24px;">Ready to connect?</div>
-    <p class="section-lead">Tell us what you need to run, how confidential the workload is, and what a reliable production endpoint means for your team. We will propose a focused pilot with clear limits and measurable success criteria.</p>
-    <form class="request-form" id="pilot-form">
-      <label for="pf-name">Your name</label>
-      <input id="pf-name" name="name" type="text" required autocomplete="name">
-      <label for="pf-org">Organisation</label>
-      <input id="pf-org" name="organisation" type="text" required autocomplete="organization">
-      <label for="pf-workload">The workload</label>
-      <textarea id="pf-workload" name="workload" required placeholder="What you need to run, who will call it, what data it touches, expected volume and response time."></textarea>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-light">Compose the pilot request</button>
-        <a href="mailto:hello@alzette.lu?subject=Technical%20question" class="btn btn-outline-light">Ask a technical question</a>
-      </div>
-      <p class="form-note">
-        Opens your email client with everything prefilled — nothing is sent until you press send.
-        No email client? Write to <a href="mailto:hello@alzette.lu">hello@alzette.lu</a><button type="button" class="copy-btn" id="copy-email" aria-label="Copy email address">copy</button>
-      </p>
-    </form>
-    <p class="contact-line">Alzette Systems — Luxembourg-based private inference infrastructure for regulated work.</p>
-  </div>
-</section>
-</main>
-
-<footer>
-  <div class="container">
-    <div class="footer-grid">
-      <div>
-        <a class="logo" href="#"><svg class="logo-mark" aria-hidden="true"><use href="#alzette-river"/></svg>alzette<span>.systems</span></a>
-        <p class="footer-statement">Private inference endpoints for Luxembourg's financial centre and other organisations that need control over sensitive AI workloads.</p>
-      </div>
-      <nav class="footer-nav">
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="/" aria-label="Alzette Systems home">
+        <img src="/alzette-mark.svg" alt="" width="26" height="26">
+        <span>alzette<span class="brand-domain">.systems</span></span>
+      </a>
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="#why">Why Alzette</a>
         <a href="#product">Product</a>
-        <a href="#models">Models</a>
-        <a href="docs.html">Documentation</a>
-        <a href="#security">Security</a>
-        <a href="#contact">Contact</a>
+        <a href="#finance">For finance</a>
+        <a href="#governance">Governance</a>
+        <a href="/docs">Documentation</a>
+      </nav>
+      <a class="button button-primary button-small header-login" href="#contact">Discuss a pilot</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero marketing-hero">
+      <div class="shell hero-grid marketing-hero-grid">
+        <div class="hero-copy">
+          <p class="kicker">Private AI infrastructure · Luxembourg</p>
+          <h1>Use AI on confidential work—without giving up control.</h1>
+          <p class="hero-lead">Alzette deploys and operates private model infrastructure for asset managers, fund administrators, banks, insurers, and other regulated organisations. Your existing applications connect to an environment dedicated to your organisation.</p>
+          <div class="actions">
+            <a class="button button-primary" href="#contact">Discuss a private pilot</a>
+            <a class="button button-secondary" href="#product">See how it works</a>
+          </div>
+          <div class="hero-assurances" aria-label="Service principles">
+            <span>Dedicated per client</span>
+            <span>Operated in Luxembourg</span>
+            <span>Built for regulated workflows</span>
+          </div>
+        </div>
+
+        <aside class="service-charter" aria-label="Service responsibility charter">
+          <div class="charter-heading">
+            <span>Private service charter</span>
+            <img src="/alzette-mark.svg" alt="" width="22" height="22">
+          </div>
+          <table class="charter-table" aria-label="Private service responsibilities">
+            <thead>
+              <tr>
+                <th scope="col">Your organisation decides</th>
+                <th scope="col">Alzette operates</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Approved workloads and users</td>
+                <td>Private inference environment</td>
+              </tr>
+              <tr>
+                <td>Models and data policy</td>
+                <td>Deployment and monitoring</td>
+              </tr>
+              <tr>
+                <td>Access rules and limits</td>
+                <td>Maintenance and support</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>Control stays with you. Operations stay with us. The exact boundary is documented for each client.</p>
+        </aside>
+      </div>
+    </section>
+
+    <div class="trust-strip" aria-label="Alzette service summary">
+      <div class="shell trust-grid">
+        <div><span>Deployment</span><strong>A model environment for your organisation</strong></div>
+        <div><span>Location</span><strong>Local infrastructure operated in Luxembourg</strong></div>
+        <div><span>Integration</span><strong>One endpoint behind your existing applications</strong></div>
+        <div><span>Oversight</span><strong>Company-wide usage and operational visibility</strong></div>
+      </div>
+    </div>
+
+    <section id="why" class="section section-muted">
+      <div class="shell problem-grid">
+        <div class="section-intro compact">
+          <p class="section-label">The missing middle</p>
+          <h2>Confidential AI needs an approvable operating model.</h2>
+          <p>Financial teams work with investment material, fund records, client documentation, policies, contracts, and personal information. The value of AI is real; the usual operating choices are difficult to approve.</p>
+        </div>
+        <div>
+          <p class="list-intro">Most organisations are asked to choose between:</p>
+          <ul class="choice-list">
+            <li>prohibiting AI and leaving useful workflows untouched;</li>
+            <li>accepting public tools without a consistent control layer;</li>
+            <li>building and operating specialist infrastructure internally;</li>
+            <li>entering a large cloud relationship for a focused workload.</li>
+          </ul>
+          <p class="missing-middle">Alzette provides another path: private inference infrastructure, operated locally, behind the systems your organisation already controls.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="product" class="section section-dark">
+      <div class="shell">
+        <div class="section-intro light">
+          <p class="section-label">The private inference layer</p>
+          <h2>Not another public AI account. Infrastructure for your organisation.</h2>
+          <p>Alzette gives your IT team or integration partner one controlled route to approved models. The deployment, model version, capacity, access, retention, and operating responsibilities are agreed around your workload.</p>
+        </div>
+
+        <div class="service-flow" role="img" aria-label="Your application connects to an Alzette private endpoint, which reaches a dedicated model environment on Luxembourg infrastructure">
+          <div class="service-node">
+            <span>Your systems</span>
+            <strong>Approved application</strong>
+          </div>
+          <span class="service-arrow" aria-hidden="true">→</span>
+          <div class="service-node service-node-accent">
+            <span>Alzette</span>
+            <strong>Private endpoint</strong>
+          </div>
+          <span class="service-arrow" aria-hidden="true">→</span>
+          <div class="service-node">
+            <span>Your deployment</span>
+            <strong>Dedicated model</strong>
+          </div>
+          <span class="service-arrow" aria-hidden="true">→</span>
+          <div class="service-node">
+            <span>Local operation</span>
+            <strong>Luxembourg infrastructure</strong>
+          </div>
+        </div>
+
+        <div class="capability-ledger">
+          <div>
+            <span>Boundary</span>
+            <div><h3>Private by design</h3><p>Credentials, routes, usage records, and operating policy are scoped to your organisation. Dedicated deployment is the primary production offer.</p></div>
+          </div>
+          <div>
+            <span>Operator</span>
+            <div><h3>Locally accountable</h3><p>Alzette operates the inference layer in Luxembourg and remains the direct technical and operational counterpart for your team.</p></div>
+          </div>
+          <div>
+            <span>Integration</span>
+            <div><h3>Stable for existing systems</h3><p>Your applications use a familiar OpenAI-compatible endpoint and an approved model identifier, without exposing infrastructure choices to end users.</p></div>
+          </div>
+          <div>
+            <span>Evidence</span>
+            <div><h3>Visible to the organisation</h3><p>Review requests, outcomes, model usage, latency, service accounts, and route context from a company-level client portal.</p></div>
+          </div>
+          <div>
+            <span>Change</span>
+            <div><h3>Controlled through change</h3><p>Model versions and infrastructure changes follow an agreed release path instead of changing silently behind your application.</p></div>
+          </div>
+          <div>
+            <span>Contract</span>
+            <div><h3>Defined contractually</h3><p>Execution location, retention, support, service levels, capacity, and model availability are written into the applicable service agreement.</p></div>
+          </div>
+        </div>
+
+        <a class="button button-outline-light section-action" href="mailto:hello@alzette.lu?subject=Alzette%20service%20specification">Request the service specification</a>
+      </div>
+    </section>
+
+    <section id="finance" class="section">
+      <div class="shell finance-grid">
+        <div class="section-intro compact">
+          <p class="section-label">Built for financial services</p>
+          <h2>Designed around the way financial firms approve technology.</h2>
+          <p>For an asset manager or financial-services provider, model quality is only one part of the decision. Compliance, information security, operations, procurement, and the business owner all need clear answers.</p>
+        </div>
+
+        <div class="finance-brief">
+          <div>
+            <h3>Start with a defined workflow</h3>
+            <p>Typical evaluations include document review, controlled summarisation, classification, information extraction, policy search, and internal research support.</p>
+          </div>
+          <div>
+            <h3>Approve a defined service</h3>
+            <p>Know the model and version, where it runs, what is retained, who can access it, how changes are handled, and who responds when something fails.</p>
+          </div>
+          <div>
+            <h3>Keep evidence after launch</h3>
+            <p>Give operational, finance, and oversight teams a shared view of usage, latency, errors, application identities, and exported records.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-muted" id="offers">
+      <div class="shell">
+        <div class="section-intro">
+          <p class="section-label">A practical route to production</p>
+          <h2>Start with one workload. Build the private service around what it proves.</h2>
+          <p>A focused pilot establishes model quality, integration, usage, and the operating requirements before a production commitment is made.</p>
+        </div>
+
+        <div class="offer-grid">
+          <article class="offer-panel">
+            <div class="offer-heading">
+              <span>Evaluate</span>
+              <h3>Private pilot</h3>
+            </div>
+            <p>For one sponsored workflow with agreed users, data handling, model access, and measurable acceptance criteria.</p>
+            <ul>
+              <li>One defined business workflow</li>
+              <li>Approved test data and access</li>
+              <li>Integration and quality validation</li>
+              <li>Usage and latency reporting</li>
+            </ul>
+            <a class="text-link" href="#contact">Define the pilot <span aria-hidden="true">→</span></a>
+          </article>
+
+          <article class="offer-panel offer-panel-primary">
+            <div class="offer-heading">
+              <span>Operate</span>
+              <h3>Dedicated production</h3>
+            </div>
+            <p>A model environment and capacity assigned to your organisation, with a stable endpoint and an agreed operational relationship.</p>
+            <ul>
+              <li>Dedicated model deployment</li>
+              <li>Customer-specific access and policy</li>
+              <li>Monitoring, change, and incident procedures</li>
+              <li>Contracted location, support, and service terms</li>
+            </ul>
+            <a class="text-link" href="#contact">Discuss dedicated inference <span aria-hidden="true">→</span></a>
+          </article>
+        </div>
+        <p class="offer-note">Shared capacity can be considered for exploratory or lower-sensitivity needs. Dedicated private deployment is the primary production model.</p>
+      </div>
+    </section>
+
+    <section class="section" id="visibility">
+      <div class="shell evidence-grid">
+        <div class="section-intro compact">
+          <p class="section-label">Company-wide visibility</p>
+          <h2>Know how inference is being used across your organisation.</h2>
+          <p>The client portal turns infrastructure activity into a view that operations, technology, and finance can use together—without exposing prompts, outputs, provider credentials, or internal target details.</p>
+          <a class="text-link" href="/client">Open the client portal <span aria-hidden="true">→</span></a>
+        </div>
+
+        <div class="evidence-ledger" aria-label="Client portal visibility">
+          <div><span>Consumption</span><strong>Requests and reported model usage by period</strong></div>
+          <div><span>Accountability</span><strong>Project, environment, model, and service account</strong></div>
+          <div><span>Quality of service</span><strong>Outcomes, latency, throughput, and concurrency</strong></div>
+          <div><span>Deployment</span><strong>Private/shared mode, route, model, and service context</strong></div>
+          <div><span>Review</span><strong>Scoped request records and safe CSV/JSON exports</strong></div>
+        </div>
+      </div>
+      <div class="shell privacy-line">
+        <strong>Content stays out of the dashboard.</strong>
+        <span>Operational metadata is visible to authorised client users; prompt and completion bodies are not part of the usage ledger or customer exports.</span>
+      </div>
+    </section>
+
+    <section id="governance" class="section section-dark governance-section">
+      <div class="shell governance-grid">
+        <div class="section-intro compact light">
+          <p class="section-label">Security and data handling</p>
+          <h2>Clear answers before confidential work moves.</h2>
+          <p>Your organisation should not have to infer the service boundary from a cloud console. Alzette defines the operating commitments around the client and workload.</p>
+          <a class="button button-outline-light section-action" href="mailto:hello@alzette.lu?subject=Alzette%20security%20pack">Request the security pack</a>
+        </div>
+
+        <dl class="governance-ledger">
+          <div><dt>Where does it run?</dt><dd>The agreed private execution environment and Luxembourg operating location.</dd></div>
+          <div><dt>What is retained?</dt><dd>Prompt, response, log, usage, backup, and deletion terms for the client environment.</dd></div>
+          <div><dt>Who can access it?</dt><dd>Customer roles plus bounded, documented administrative and support access.</dd></div>
+          <div><dt>What can change?</dt><dd>The approved model, version, release process, and notice or rollback procedure.</dd></div>
+          <div><dt>What happens when it fails?</dt><dd>Monitoring, incident handling, support path, and applicable service commitment.</dd></div>
+        </dl>
+      </div>
+      <div class="shell governance-note">Alzette provides inference infrastructure and operational controls. It does not provide legal, tax, accounting, investment, or regulatory advice.</div>
+    </section>
+
+    <section id="onboarding" class="section">
+      <div class="shell">
+        <div class="section-intro">
+          <p class="section-label">From question to production</p>
+          <h2>A focused path from first workload to private endpoint.</h2>
+        </div>
+        <ol class="onboarding-grid">
+          <li>
+            <span>01</span>
+            <h3>Define the workload</h3>
+            <p>Agree what the model must do, who uses it, what information it touches, and what success looks like.</p>
+          </li>
+          <li>
+            <span>02</span>
+            <h3>Set the boundary</h3>
+            <p>Select the model and define location, access, retention, expected volume, support, and service requirements.</p>
+          </li>
+          <li>
+            <span>03</span>
+            <h3>Connect your application</h3>
+            <p>Your IT team or integrator receives the endpoint, credentials, approved model alias, and technical documentation.</p>
+          </li>
+          <li>
+            <span>04</span>
+            <h3>Validate and launch</h3>
+            <p>Test quality, latency, usage, and failure handling, then move into the agreed private production service.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section section-contact" id="contact">
+      <div class="shell pilot-contact-grid">
+        <div>
+          <p class="section-label">Start with one confidential workflow</p>
+          <h2>Give your applications a private inference layer.</h2>
+          <p>Tell us what your organisation needs to run, what information it touches, and what a reliable private service means for your team. We will turn it into a focused pilot discussion.</p>
+          <p class="direct-contact">Prefer a direct conversation? <a href="mailto:hello@alzette.lu">hello@alzette.lu</a></p>
+        </div>
+
+        <form class="pilot-form" id="pilot-form" action="/pilot-request" method="post">
+          <fieldset class="pilot-fields" id="pilot-fields" disabled>
+            <div class="form-field">
+              <label for="pilot-name">Your name</label>
+              <input id="pilot-name" name="name" type="text" autocomplete="name" required>
+            </div>
+            <div class="form-field">
+              <label for="pilot-organisation">Organisation</label>
+              <input id="pilot-organisation" name="organisation" type="text" autocomplete="organization" required>
+            </div>
+            <div class="form-field form-field-wide">
+              <label for="pilot-workload">What confidential workflow are you evaluating?</label>
+              <textarea id="pilot-workload" name="workload" rows="5" placeholder="The work, the people involved, the information it touches, and what you need to prove." required></textarea>
+            </div>
+            <div class="form-submit form-field-wide">
+              <button class="button button-light" type="submit">Compose the pilot request</button>
+              <a class="button button-outline-light" href="/docs">Technical documentation</a>
+            </div>
+            <p class="form-note form-field-wide">This opens your email client with the request prefilled. Nothing is sent until you choose to send it.</p>
+          </fieldset>
+          <noscript>
+            <p class="noscript-contact">To keep your workflow details out of a web address, this form requires JavaScript. Please contact <a href="mailto:hello@alzette.lu">hello@alzette.lu</a> directly.</p>
+          </noscript>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-top">
+      <div>
+        <a class="brand" href="/" aria-label="Alzette Systems home">
+          <img src="/alzette-mark.svg" alt="" width="26" height="26">
+          <span>alzette<span class="brand-domain">.systems</span></span>
+        </a>
+        <p>Private inference infrastructure for Luxembourg’s financial industry and other organisations that need control over confidential AI workloads.</p>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="#product">Product</a>
+        <a href="#finance">For finance</a>
+        <a href="#governance">Security</a>
+        <a href="#onboarding">How it works</a>
+        <a href="/docs">Documentation</a>
+        <a href="/client">Client login</a>
+        <a href="mailto:hello@alzette.lu">Contact</a>
       </nav>
     </div>
-    <div class="footer-bottom">
-      <span>© Alzette Systems. All rights reserved.</span>
-      <a href="mailto:hello@alzette.lu">hello@alzette.lu</a>
-    </div>
-    <div class="footer-legal">
+    <div class="shell footer-legal">
       <span>Alzette Systems is a commercial name of DUCHENE S.à r.l.-S</span>
       <span>RCS Luxembourg B258532</span>
       <span>VAT LU33413731</span>
       <span>7, route de Mamer, Holzem, Luxembourg</span>
-      <a href="[TODO: privacy policy URL]">Privacy policy</a>
+      <span>© 2026</span>
     </div>
-  </div>
-</footer>
+  </footer>
 
-<script>
-(function () {
-  var EMAIL = 'hello@alzette.lu';
-  var form = document.getElementById('pilot-form');
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    if (!form.reportValidity()) return;
-    var name = form.elements.name.value.trim();
-    var org = form.elements.organisation.value.trim();
-    var workload = form.elements.workload.value.trim();
-    var subject = 'Pilot request — ' + org;
-    var body = 'Name: ' + name + '\nOrganisation: ' + org + '\n\nWorkload:\n' + workload;
-    window.location.href = 'mailto:' + EMAIL +
-      '?subject=' + encodeURIComponent(subject) +
-      '&body=' + encodeURIComponent(body);
-  });
-  var copyBtn = document.getElementById('copy-email');
-  copyBtn.addEventListener('click', function () {
-    function done(label) {
-      copyBtn.textContent = label;
-      setTimeout(function () { copyBtn.textContent = 'copy'; }, 2000);
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(EMAIL).then(function () { done('copied'); }, function () { done(EMAIL); });
-    } else {
-      done(EMAIL);
-    }
-  });
-})();
-</script>
-
+  <script>
+    (function () {
+      var form = document.getElementById('pilot-form');
+      document.getElementById('pilot-fields').disabled = false;
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        var organisation = form.elements.organisation.value.trim();
+        var subject = 'Private inference pilot — ' + organisation;
+        var body = [
+          'Name: ' + form.elements.name.value.trim(),
+          'Organisation: ' + organisation,
+          '',
+          'Workload:',
+          form.elements.workload.value.trim()
+        ].join('\n');
+        window.location.href = 'mailto:hello@alzette.lu?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+      });
+    })();
+  </script>
 </body>
 </html>

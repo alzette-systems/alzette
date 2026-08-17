@@ -1,306 +1,306 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Documentation — Alzette Systems</title>
-<meta name="description" content="Pilot documentation for the Alzette private inference endpoint: connection, authentication, models, limits, and support.">
-<link rel="icon" href="alzette-mark.svg" type="image/svg+xml">
-<link rel="stylesheet" href="site.css">
-<style>
-  .page-head { padding: 80px 0 56px; border-bottom: 1px solid var(--line); }
-  .page-head h1 { font-size: 56px; }
-  .page-head .lead { font-size: 20px; color: var(--dim); margin-top: 22px; max-width: 620px; }
-  .docs section { padding: 64px 0; }
-  .docs h3 { font-size: 18px; font-weight: 600; margin: 30px 0 8px; letter-spacing: -0.01em; }
-  .docs h3:first-of-type { margin-top: 24px; }
-  .docs p { max-width: 68ch; }
-  .docs p + p { margin-top: 12px; }
-  .docs .code-block { margin-top: 20px; max-width: 720px; }
-  .docs .def-list { margin-top: 20px; max-width: 720px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-  .docs .def-row { display: grid; grid-template-columns: 200px 1fr; gap: 24px; padding: 13px 20px; border-bottom: 1px solid var(--line); font-size: 15px; }
-  .docs .def-row:last-child { border-bottom: none; }
-  .docs .def-row .k { font-family: var(--mono); font-size: 13px; color: var(--ink); }
-  .docs .def-row .v { color: var(--dim); }
-  .docs .catalogue-table { margin-top: 24px; }
-  @media (max-width: 640px) {
-    .page-head { padding: 52px 0 40px; }
-    .page-head h1 { font-size: 36px; }
-    .docs .def-row { grid-template-columns: 1fr; gap: 4px; padding: 12px 16px; }
-  }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Implementation documentation — Alzette Systems</title>
+  <meta name="description" content="Exact connection, authentication, request, endpoint, usage, and delivery-boundary documentation for the Alzette inference PoC.">
+  <link rel="icon" href="/alzette-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/site.css">
 </head>
-<body>
+<body class="docs-page">
+  <a class="skip-link" href="#main">Skip to documentation</a>
 
-<!--
-THESIS: Pilot documentation that reads like the service agreement's technical annex — every statement either teaches a connection step or points at the contract that defines it. It refuses the docs-as-marketing pattern and the fake-complete reference.
-OWN-WORLD: the established Alzette system — paper ground, ink type, mono for data and code, one green accent, the river mark; the catalogue table and code block are reused verbatim from the homepage.
-STORY: A developer or IT partner lands from the nav, confirms the endpoint is OpenAI-compatible, copies the quickstart, sees the approved-model pattern, and knows exactly what is defined per service agreement versus on this page.
-FIRST VIEWPORT: plain page head — "Documentation." plus one lead sentence stating this is the pilot reference pending the client dashboard; no hero, no CTA cluster.
-FORM: local extension inside the established world (new-work §3); no concept roll. Seed key: none.
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md.
--->
-
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="alzette-river" viewBox="0 0 512 512">
-    <rect width="512" height="512" rx="92" fill="#10151a"/>
-    <path d="M244.81 420.00 L249.59 411.56 L278.39 390.86 L284.46 372.18 L301.24 354.30 L297.20 335.01 L302.58 320.99 L311.87 311.42 L335.45 305.61 L341.20 290.80 L334.69 283.77 L329.23 285.62 L320.62 281.60 L304.98 266.86 L292.02 296.88 L238.90 317.42 L227.04 306.19 L226.66 300.42 L253.94 274.71 L253.32 267.60 L242.72 267.58 L223.13 258.48 L206.59 272.67 L200.32 272.56 L194.27 267.54 L190.89 258.09 L193.49 251.05 L219.73 244.45 L228.08 232.69 L220.24 227.30 L192.56 236.22 L178.03 222.10 L173.80 201.73 L179.22 175.57 L172.13 159.55 L170.80 144.91 L192.23 119.83 L196.27 107.38 L191.15 92.00" fill="none" stroke="#0d9e63" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
-  </symbol>
-</svg>
-
-<div class="announce">
-  <div class="container">
-    <span class="dot"></span>
-    <span>PRIVATE INFERENCE PILOT · LUXEMBOURG</span>
-    <a href="index.html#contact">Request access →</a>
-  </div>
-</div>
-
-<header>
-  <div class="container header-inner">
-    <a class="logo" href="index.html"><svg class="logo-mark" aria-hidden="true"><use href="#alzette-river"/></svg>alzette<span>.systems</span></a>
-    <nav class="main-nav">
-      <a href="index.html#product">Product</a>
-      <a href="index.html#security">Security</a>
-      <a href="index.html#models">Models</a>
-      <a href="docs.html" aria-current="page">Documentation</a>
-      <a href="index.html#contact">Contact</a>
-    </nav>
-    <div>
-      <a href="index.html#contact" class="btn btn-primary btn-small">Request access</a>
+  <div class="announcement" role="status">
+    <div class="shell announcement-inner">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span>PoC contract · Buffered + text/tool SSE · External / shared pilot</span>
+      <a href="#delivery-boundary">Read the limits</a>
     </div>
   </div>
-</header>
 
-<main class="docs">
-<div class="page-head">
-  <div class="container">
-    <h1>Documentation.</h1>
-    <p class="lead">The pilot reference for the Alzette inference endpoint: enough to connect, evaluate, and operate. The complete reference, with usage records and account management, ships with the client dashboard.</p>
-  </div>
-</div>
-
-<!-- The endpoint -->
-<section>
-  <div class="container">
-    <div class="section-head">
-      <h2>The endpoint</h2>
-      <div class="eyebrow">Connection</div>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="/" aria-label="Alzette Systems home">
+        <img src="/alzette-mark.svg" alt="" width="26" height="26">
+        <span>alzette<span class="brand-domain">.systems</span></span>
+      </a>
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="/#product">Product</a>
+        <a href="/#evidence">Client evidence</a>
+        <a href="/#path">Deployment path</a>
+        <a href="/docs" aria-current="page">Documentation</a>
+      </nav>
+      <a class="button button-quiet button-small header-login" href="/client">Client login</a>
     </div>
-    <p>Alzette exposes an OpenAI-compatible API. Applications that already work with the OpenAI SDK or a standard HTTP client connect by changing the base URL and the API key. No rewrite.</p>
-    <div class="def-list">
-      <div class="def-row"><span class="k">base_url</span><span class="v">https://api.alzette.lu/v1</span></div>
-      <div class="def-row"><span class="k">compatibility</span><span class="v">OpenAI API: chat completions, streaming, structured output, embeddings</span></div>
-      <div class="def-row"><span class="k">hosting</span><span class="v">Luxembourg; contractual residency is defined in the service agreement</span></div>
-      <div class="def-row"><span class="k">retention</span><span class="v">Prompt and response content is not retained by default; policy defined per environment</span></div>
-    </div>
-  </div>
-</section>
+  </header>
 
-<!-- Authentication -->
-<section class="alt">
-  <div class="container">
-    <div class="section-head">
-      <h2>Authentication</h2>
-      <div class="eyebrow">Credentials</div>
-    </div>
-    <p>Requests authenticate with a bearer API key. Keys are issued per organisation and project during onboarding, and are isolated per tenant; quotas, usage records, and model access are scoped to your credentials.</p>
-    <p>Store the key in an environment variable and never in source code:</p>
-    <div class="code-block">
-      <div class="code-label">Environment</div>
-      <pre><code><span class="tok-kw">export</span> ALZETTE_API_KEY=<span class="tok-str">"alz-…"</span></code></pre>
-    </div>
-  </div>
-</section>
-
-<!-- Quickstart -->
-<section>
-  <div class="container">
-    <div class="section-head">
-      <h2>Quickstart</h2>
-      <div class="eyebrow">First request</div>
-    </div>
-    <h3>cURL</h3>
-    <div class="code-block">
-      <div class="code-label">HTTP</div>
-      <pre><code>curl https://api.alzette.lu/v1/chat/completions \
-  -H <span class="tok-str">"Authorization: Bearer $ALZETTE_API_KEY"</span> \
-  -H <span class="tok-str">"Content-Type: application/json"</span> \
-  -d <span class="tok-str">'{
-    "model": "approved-text-model",
-    "messages": [{"role": "user", "content": "Summarise this document."}]
-  }'</span></code></pre>
-    </div>
-    <h3>Python</h3>
-    <div class="code-block">
-      <div class="code-label">Python · OpenAI SDK</div>
-      <pre><code><span class="tok-kw">import</span> os
-
-<span class="tok-kw">from</span> openai <span class="tok-kw">import</span> OpenAI
-
-client = <span class="tok-fn">OpenAI</span>(
-    base_url=<span class="tok-str">"https://api.alzette.lu/v1"</span>,
-    api_key=os.environ[<span class="tok-str">"ALZETTE_API_KEY"</span>],
-)
-
-response = client.chat.completions.<span class="tok-fn">create</span>(
-    model=<span class="tok-str">"approved-text-model"</span>,
-    messages=[
-        {<span class="tok-str">"role"</span>: <span class="tok-str">"user"</span>, <span class="tok-str">"content"</span>: <span class="tok-str">"Summarise this document."</span>}
-    ],
-)
-
-<span class="tok-fn">print</span>(response.choices[<span class="tok-str">0</span>].message.content)</code></pre>
-      <div class="code-caption">Model identifiers come from your organisation's approved catalogue — agreed during onboarding, not chosen from a public list.</div>
-    </div>
-  </div>
-</section>
-
-<!-- Models -->
-<section class="alt" id="models">
-  <div class="container">
-    <div class="section-head">
-      <h2>Models</h2>
-      <div class="eyebrow">Catalogue</div>
-    </div>
-    <p>Alzette maintains a curated catalogue of open-weight models. Your organisation's contract defines which of them are available to your credentials, on which capacity tier.</p>
-    <table class="catalogue-table">
-      <caption>A selection from the current catalogue.</caption>
-      <thead>
-        <tr><th>Model</th><th>Modalities</th><th>Context</th><th class="tier-col">Tier</th><th class="best-col">Best for</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Kimi K3<span class="flagship-tag">Flagship</span></td>
-          <td class="mod-tags"><span class="mod-tag">text</span><span class="mod-tag">vision</span></td>
-          <td>1M tokens</td>
-          <td class="tier-col">Dedicated · Reserved</td>
-          <td class="best-col">Hardest reasoning and coding workloads</td>
-        </tr>
-        <tr>
-          <td>GLM 5.2</td>
-          <td class="mod-tags"><span class="mod-tag">text</span></td>
-          <td>1,040k tokens</td>
-          <td class="tier-col">Dedicated · Reserved</td>
-          <td class="best-col">Broad reasoning, coding agents, long documents</td>
-        </tr>
-        <tr>
-          <td>DeepSeek V4 Pro</td>
-          <td class="mod-tags"><span class="mod-tag">text</span></td>
-          <td>1,040k tokens</td>
-          <td class="tier-col">Dedicated · Reserved</td>
-          <td class="best-col">Long-context reasoning from a second model family</td>
-        </tr>
-        <tr>
-          <td>DeepSeek V4 Flash</td>
-          <td class="mod-tags"><span class="mod-tag">text</span></td>
-          <td>1,040k tokens</td>
-          <td class="tier-col">Shared · Dedicated</td>
-          <td class="best-col">High-volume long-context routes</td>
-        </tr>
-        <tr>
-          <td>Kimi K2.7 Code</td>
-          <td class="mod-tags"><span class="mod-tag">text</span><span class="mod-tag">vision</span></td>
-          <td>262k tokens</td>
-          <td class="tier-col">Shared · Dedicated</td>
-          <td class="best-col">Repository agents, screenshot-driven dev tools</td>
-        </tr>
-        <tr>
-          <td>MiniMax M3</td>
-          <td class="mod-tags"><span class="mod-tag">text</span><span class="mod-tag">image</span><span class="mod-tag">video</span></td>
-          <td>512k tokens</td>
-          <td class="tier-col">Dedicated</td>
-          <td class="best-col">Native multimodal and media understanding</td>
-        </tr>
-        <tr>
-          <td>Qwen3-VL 30B</td>
-          <td class="mod-tags"><span class="mod-tag">text</span><span class="mod-tag">image</span><span class="mod-tag">docs</span></td>
-          <td>256k tokens</td>
-          <td class="tier-col">Shared · Dedicated</td>
-          <td class="best-col">Visual documents and multilingual OCR</td>
-        </tr>
-        <tr>
-          <td>DeepSeek-OCR</td>
-          <td class="mod-tags"><span class="mod-tag">docs</span></td>
-          <td>—</td>
-          <td class="tier-col">Shared</td>
-          <td class="best-col">High-throughput document digitisation</td>
-        </tr>
-      </tbody>
-    </table>
-    <p class="catalogue-note">Exact versions, availability tiers, and input/output pricing are defined per service agreement. Machine-readable: <code>/catalog.json</code>.</p>
-  </div>
-</section>
-
-<!-- Limits and metering -->
-<section>
-  <div class="container">
-    <div class="section-head">
-      <h2>Limits and metering</h2>
-      <div class="eyebrow">Budgets</div>
-    </div>
-    <p>Usage is metered by tokens and other agreed resources. Budgets and rate limits are set per organisation and per project, and hard monthly caps stop usage at the agreed limit, so your account cannot spend beyond it.</p>
-    <p>Specific limits, quotas, and metering detail are defined per service agreement and reviewed during onboarding.</p>
-  </div>
-</section>
-
-<!-- Errors -->
-<section class="alt">
-  <div class="container">
-    <div class="section-head">
-      <h2>Errors</h2>
-      <div class="eyebrow">Failure handling</div>
-    </div>
-    <p>Error responses follow the OpenAI error format, with standard HTTP status codes. Client code written against the OpenAI SDK handles them without changes.</p>
-    <p>Requests rejected by a budget cap or rate limit fail visibly at the API. They are never silently degraded or rerouted to a different model.</p>
-  </div>
-</section>
-
-<!-- Changes and support -->
-<section>
-  <div class="container">
-    <div class="section-head">
-      <h2>Changes and support</h2>
-      <div class="eyebrow">Operations</div>
-    </div>
-    <p>Models are served as versioned releases. Changes to model versions, capacity, or operational procedures are communicated in advance, per the change-control terms of the service agreement.</p>
-    <p>Technical questions go to the same people who operate the service: <a href="mailto:hello@alzette.lu">hello@alzette.lu</a>. A security pack and operational evidence for your compliance review are available on request.</p>
-    <div class="hero-actions" style="margin-top: 28px; margin-bottom: 0;">
-      <a href="mailto:hello@alzette.lu?subject=Security%20pack" class="btn btn-secondary">Request the security pack</a>
-      <a href="index.html#contact" class="btn btn-secondary">Discuss a pilot</a>
-    </div>
-  </div>
-</section>
-</main>
-
-<footer>
-  <div class="container">
-    <div class="footer-grid">
-      <div>
-        <a class="logo" href="index.html"><svg class="logo-mark" aria-hidden="true"><use href="#alzette-river"/></svg>alzette<span>.systems</span></a>
-        <p class="footer-statement">Private inference endpoints for Luxembourg's financial centre and other organisations that need control over sensitive AI workloads.</p>
+  <main id="main">
+    <section class="docs-hero">
+      <div class="shell docs-hero-grid">
+        <div>
+          <p class="kicker">Implementation documentation</p>
+          <h1>Connect to the Alzette PoC.</h1>
+          <p class="hero-lead">The gateway exposes a strict OpenAI-compatible Chat Completions subset. The authenticated portal is the source of truth for your current gateway origin, model alias, and workload credentials.</p>
+        </div>
+        <dl class="docs-status">
+          <div><dt>Stage</dt><dd>Slice 0–2 + endpoint control PoC</dd></div>
+          <div><dt>Request mode</dt><dd>Buffered or text/function-tool SSE</dd></div>
+          <div><dt>Route label</dt><dd>External pilot · Shared pilot</dd></div>
+          <div><dt>Current evidence</dt><dd>Offline compatible-target validation</dd></div>
+        </dl>
       </div>
-      <nav class="footer-nav">
-        <a href="index.html#product">Product</a>
-        <a href="index.html#models">Models</a>
-        <a href="docs.html" aria-current="page">Documentation</a>
-        <a href="index.html#security">Security</a>
-        <a href="index.html#contact">Contact</a>
+    </section>
+
+    <div class="shell docs-shell">
+      <aside class="docs-sidebar" aria-label="Documentation sections">
+        <p>On this page</p>
+        <nav>
+          <a href="#quickstart">Quickstart</a>
+          <a href="#authentication">Authentication</a>
+          <a href="#request-contract">Request contract</a>
+          <a href="#responses">Responses and IDs</a>
+          <a href="#usage">Usage and portal</a>
+          <a href="#endpoints">Models and endpoints</a>
+          <a href="#errors">Errors</a>
+          <a href="#delivery-boundary">Delivery boundary</a>
+          <a href="#support">Support</a>
+        </nav>
+      </aside>
+
+      <article class="docs-content">
+        <section id="quickstart" class="docs-section">
+          <div class="docs-heading">
+            <span>First call</span>
+            <h2>Quickstart</h2>
+          </div>
+          <p>Ask your project administrator for the workload’s gateway origin, model alias, and a newly issued API key. Do not infer the gateway origin from the public-site or portal port.</p>
+
+          <div class="notice">
+            <strong>Default local origins</strong>
+            <p>Gateway: <code>http://localhost:8080</code> · Portal: <code>http://localhost:8081/login</code>. A LAN deployment can publish different ports. The portal’s Docs view shows the active gateway origin.</p>
+          </div>
+
+          <h3>cURL</h3>
+          <div class="code-block">
+            <div class="code-caption">Environment and request</div>
+            <pre><code>export ALZETTE_BASE_URL='http://your-gateway-host:8080'
+export ALZETTE_API_KEY='alz_k_...'
+
+curl "$ALZETTE_BASE_URL/v1/chat/completions" \
+  --fail-with-body \
+  -H "Authorization: Bearer $ALZETTE_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "alzette-chat",
+    "messages": [
+      {"role": "user", "content": "Reply with OK"}
+    ],
+    "stream": false
+  }'</code></pre>
+          </div>
+
+          <h3>Python with the OpenAI SDK</h3>
+          <div class="code-block">
+            <div class="code-caption">OpenAI-compatible client</div>
+            <pre><code>import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url=f"{os.environ['ALZETTE_BASE_URL']}/v1",
+    api_key=os.environ["ALZETTE_API_KEY"],
+)
+
+response = client.chat.completions.create(
+    model="alzette-chat",
+    messages=[{"role": "user", "content": "Reply with OK"}],
+    stream=False,
+)
+
+print(response.choices[0].message.content)</code></pre>
+          <p class="docs-note">Replace <code>alzette-chat</code> with the alias assigned to your project. A provider model slug is operator configuration and is never accepted from the client.</p>
+        </section>
+
+        <section id="authentication" class="docs-section">
+          <div class="docs-heading">
+            <span>Identity</span>
+            <h2>Authentication</h2>
+          </div>
+          <p>Human access and application access are intentionally different. A portal password must never be copied into application code, and an API key is not a portal password.</p>
+          <div class="auth-compare">
+            <div>
+              <h3>Portal username + password</h3>
+              <p>For a person signing in to review company usage, routes, and workload access. It creates a bounded, revocable server-side session.</p>
+              <span class="tag">Used in the browser</span>
+            </div>
+            <div>
+              <h3>Alzette API key</h3>
+              <p>For an application calling the gateway. It is scoped, stored only as a SHA-256 digest, and shown in plaintext once when issued or rotated.</p>
+              <span class="tag">Used as a Bearer token</span>
+            </div>
+          </div>
+          <p>Store the API key in the application’s secret manager. Rotation creates an overlap; it does not silently revoke the previous key. Revoke the predecessor after the rollout is confirmed. Key names are permanently unique within a service account so retrying an interrupted one-time reveal cannot mint an unnoticed duplicate.</p>
+          <p>Accepting a quote, opening hosted checkout, or opening billing management may require the person to confirm the current portal password again. That confirmation refreshes only the human session; an application API key is never accepted.</p>
+        </section>
+
+        <section id="request-contract" class="docs-section">
+          <div class="docs-heading">
+            <span>POST /v1/chat/completions</span>
+            <h2>Request contract</h2>
+          </div>
+          <p>The endpoint accepts one JSON object with no query parameters and no unknown fields. The request body is limited to 1 MiB.</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Field</th><th>Required</th><th>Accepted value</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>model</code></td><td>Yes</td><td>Your server-authorised Alzette alias, up to 128 characters</td></tr>
+                <tr><td><code>messages</code></td><td>Yes</td><td>1–128 bounded entries; text-only <code>system</code>, <code>user</code>, <code>assistant</code>, and validated assistant-tool/tool-result history</td></tr>
+                <tr><td><code>stream</code></td><td>No</td><td><code>false</code> for a buffered response or <code>true</code> for the tested text/function-tool SSE subset</td></tr>
+                <tr><td><code>stream_options</code></td><td>No</td><td><code>include_usage</code> for a streaming request</td></tr>
+                <tr><td><code>temperature</code></td><td>No</td><td>Number from 0 through 2</td></tr>
+                <tr><td><code>top_p</code></td><td>No</td><td>Number from 0 through 1</td></tr>
+                <tr><td><code>max_tokens</code></td><td>No</td><td>Integer from 1 through 1,000,000</td></tr>
+                <tr><td><code>tools</code></td><td>No</td><td>Bounded function definitions with validated names, descriptions, and object JSON Schemas</td></tr>
+                <tr><td><code>tool_choice</code></td><td>No</td><td><code>auto</code>, <code>none</code>, <code>required</code>, or one declared named function</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="docs-note">Structured-output controls, embeddings, image/audio content, custom or grammar tools, target URLs, tenant IDs, and provider model slugs are outside this tested contract and fail closed.</p>
+        </section>
+
+        <section id="responses" class="docs-section">
+          <div class="docs-heading">
+            <span>Correlation</span>
+            <h2>Responses and request IDs</h2>
+          </div>
+          <p>A successful non-streaming response is buffered and validated before any customer bytes are written. In streaming mode, Alzette validates and flushes supported text and function-tool deltas, requires a supported terminal finish reason and <code>[DONE]</code>, and never retries after the first downstream write.</p>
+          <ul class="docs-list">
+            <li><code>X-Alzette-Request-ID</code> identifies the logical customer request.</li>
+            <li><code>X-Request-ID</code> carries the same identifier for common client tooling.</li>
+            <li>Error bodies repeat it as <code>request_id</code> in a stable JSON envelope.</li>
+            <li>Give that Alzette request ID to support; provider attempts and target details remain operator-only.</li>
+          </ul>
+          <div class="code-block code-block-short">
+            <div class="code-caption">Error envelope</div>
+            <pre><code>{
+  "error": {
+    "message": "authentication failed",
+    "type": "authentication_error",
+    "code": "invalid_api_key"
+  },
+  "request_id": "req_..."
+}</code></pre>
+          </div>
+        </section>
+
+        <section id="usage" class="docs-section">
+          <div class="docs-heading">
+            <span>Customer evidence</span>
+            <h2>Usage and portal</h2>
+          </div>
+          <p>One authenticated gateway call is one logical request. A bounded retry may create another provider attempt, but it does not become another customer request.</p>
+          <div class="definition-list">
+            <div><dt>Logical request</dt><dd>The customer-visible unit used by totals, outcomes, latency, attribution, and exports.</dd></div>
+            <div><dt>Provider attempt</dt><dd>An operator-only delivery attempt. Its URL, credential, provider response body, and retry detail are not exposed through customer APIs.</dd></div>
+            <div><dt>Token finality</dt><dd>Provider-reported tokens are shown when known. Failed-only periods remain unknown; completed empty periods are not applicable.</dd></div>
+          </div>
+          <p>The portal separates Overview, Usage, Models, Endpoints, Billing, Access, and Docs. It provides organisation/project/environment scope, model and service-account attribution, latency, throughput, peak concurrency, route and plan evidence, rollup status, and safe CSV/JSON exports.</p>
+          <div class="notice">
+            <strong>Zero is a real state</strong>
+            <p>Signing in, browsing, exporting, or managing keys does not create inference usage. Statistics appear only after an application calls the gateway with that client’s scoped API key.</p>
+          </div>
+          <p>Bearer-only machine views are also available on the control origin: <code>GET /api/v1/dashboard</code>, <code>GET /api/v1/usage</code>, and <code>GET /api/v1/requests/{id}</code>.</p>
+        </section>
+
+        <section id="endpoints" class="docs-section">
+          <div class="docs-heading">
+            <span>Control plane</span>
+            <h2>Models and endpoints</h2>
+          </div>
+          <p>The Models workspace is an organisation-eligible catalogue, not a public model list. Every selectable offer identifies an operator-reviewed release, approved Alzette alias, service profile, evidence/finality, and—when authoritative—fixed price or allowance. A catalogue entry does not prove that a route is ready.</p>
+          <ol class="docs-list">
+            <li>Choose a published shared or dedicated offer and describe the workload. Customers never enter a provider URL, provider model, secret, Stripe object, or raw machine.</li>
+            <li>Save the server-backed draft or submit it. Stable idempotency keys prevent duplicate configurations, requests, checkout sessions, service accounts, and hidden credentials.</li>
+            <li>A shared evaluation may bind its allow-listed route immediately. Paid shared service waits for signed payment evidence. Dedicated service waits for quote acceptance, any payment requirement, allocation, deployment, validation, and an evidenced route binding.</li>
+            <li>Use the endpoint detail to see configuration, commercial, payment, and runtime states independently. A capacity request preserves bounded sizing intent for operator review and changes the deployment behind a ready dedicated endpoint only after quote, payment policy, allocation, and validation; it does not change the customer alias or credential contract.</li>
+          </ol>
+          <div class="notice">
+            <strong>Stripe is a hosted processor, not the seller</strong>
+            <p>When billing is configured, the customer pays Alzette through Alzette’s Stripe merchant account. The customer does not create or connect a Stripe account, and payment fields never transit the Alzette portal. With billing disabled, paid actions remain unavailable.</p>
+          </div>
+        </section>
+
+        <section id="errors" class="docs-section">
+          <div class="docs-heading">
+            <span>Failure contract</span>
+            <h2>Errors</h2>
+          </div>
+          <p>Provider error bodies, credentials, and target URLs are normalized and never returned to the caller.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Status</th><th>Meaning</th><th>Caller action</th></tr></thead>
+              <tbody>
+                <tr><td><code>400</code></td><td>Unsupported or invalid request; an otherwise supported request may also have been rejected upstream</td><td>Read <code>error.code</code> and correct the request</td></tr>
+                <tr><td><code>401</code></td><td>Missing, malformed, unknown, revoked, or expired API key</td><td>Use a current workload key</td></tr>
+                <tr><td><code>403</code></td><td>The key lacks inference scope or the route is forbidden</td><td>Ask the project administrator to review access</td></tr>
+                <tr><td><code>404</code></td><td>The model alias is not authorised for this scope</td><td>Use the assigned alias</td></tr>
+                <tr><td><code>413 / 415</code></td><td>Body too large or content type is not JSON</td><td>Reduce the body or send <code>application/json</code></td></tr>
+                <tr><td><code>429</code></td><td>The target remained rate limited after bounded handling</td><td>Back off and retry later</td></tr>
+                <tr><td><code>502 / 503 / 504</code></td><td>Target, route, ledger, response validation, connection, or timeout failure</td><td>Retry only where your workflow permits; retain the request ID</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="delivery-boundary" class="docs-section">
+          <div class="docs-heading">
+            <span>Current scope</span>
+            <h2>Delivery boundary</h2>
+          </div>
+          <p>The implemented runtime is a PostgreSQL-backed, single-machine Docker Compose PoC. Its configured route is labelled <strong>External pilot / Shared pilot</strong>. Deterministic compatible-target tests have passed; a live OpenRouter result is not asserted here.</p>
+          <p>The endpoint catalogue, configuration, quote, billing-state, webhook, and fulfilment ledgers are implemented and deterministically tested. They are not proof that a particular offer, Stripe checkout, provider route, private machine, or capacity profile is currently available.</p>
+          <p>These items remain outside current evidence: MeluXina access, a deployed private model, private LAN serving, Luxembourg execution or residency, dedicated compute, production capacity, an SLA, live Stripe settlement, scheduled billing reconciliation, structured output, embeddings, multimodal input, public signup/recovery/invitations, SSO, and multi-host orchestration.</p>
+          <p>MeluXina is the intended production environment. Those claims become current only after access, allocation, networking, model serving, monitoring, recovery, and the customer contract have been validated.</p>
+        </section>
+
+        <section id="support" class="docs-section docs-support">
+          <div class="docs-heading">
+            <span>Support</span>
+            <h2>Report a problem</h2>
+          </div>
+          <p>Send the Alzette request ID, approximate time, project/environment, model alias, HTTP status, and whether retrying is safe for the workflow. Do not send the API key, provider secret, prompt, or completion.</p>
+          <a class="button button-primary" href="mailto:hello@alzette.lu?subject=Alzette%20PoC%20support">hello@alzette.lu</a>
+        </section>
+      </article>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-top">
+      <div>
+        <a class="brand" href="/" aria-label="Alzette Systems home">
+          <img src="/alzette-mark.svg" alt="" width="26" height="26">
+          <span>alzette<span class="brand-domain">.systems</span></span>
+        </a>
+        <p>Exact documentation for the current product boundary.</p>
+      </div>
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/">Landing page</a>
+        <a href="#quickstart">Quickstart</a>
+        <a href="#delivery-boundary">Current boundary</a>
+        <a href="/client">Client login</a>
+        <a href="mailto:hello@alzette.lu">Contact</a>
       </nav>
     </div>
-    <div class="footer-bottom">
-      <span>© Alzette Systems. All rights reserved.</span>
-      <a href="mailto:hello@alzette.lu">hello@alzette.lu</a>
-    </div>
-    <div class="footer-legal">
+    <div class="shell footer-legal">
       <span>Alzette Systems is a commercial name of DUCHENE S.à r.l.-S</span>
       <span>RCS Luxembourg B258532</span>
       <span>VAT LU33413731</span>
       <span>7, route de Mamer, Holzem, Luxembourg</span>
-      <a href="[TODO: privacy policy URL]">Privacy policy</a>
+      <span>© 2026</span>
     </div>
-  </div>
-</footer>
-
+  </footer>
 </body>
 </html>
