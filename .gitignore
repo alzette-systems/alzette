@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+
+/.secrets/
+/secrets/
+*.secret
+*.secrets
+*.key
+*.pem
+*.p12
+*.pfx
+
+/alzette
+coverage.out
