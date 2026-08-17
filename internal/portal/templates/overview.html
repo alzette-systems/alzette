@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Alzette client portal for scoped route status, usage provenance, access, and first-call guidance.">
+  <title>Service overview — Alzette Systems</title>
+  <link rel="icon" href="/alzette-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/portal.css">
+  <meta name="alzette-api-mode" content="{{.Source.State}}">
+</head>
+<body class="portal-page portal-page--server" data-view="overview" data-api-state="{{.Source.State}}">
+  <a class="skip-link" href="#portal-main">Skip to portal content</a>
+
+  <div class="portal-shell">
+    <aside class="portal-rail" id="portal-nav" aria-label="Portal navigation">
+      <div class="rail-top">
+        <div class="rail-brand-row">
+          <a class="portal-brand" href="/app/overview" aria-label="Alzette client portal overview">
+            <img src="/alzette-mark.svg" alt="" class="portal-brand__mark" width="28" height="28">
+            <span>alzette<span class="portal-brand__suffix">.systems</span></span>
+          </a>
+        </div>
+        <div class="rail-context" aria-label="Current authenticated scope">
+          <span class="rail-context__label">Signed-in scope</span>
+          <strong>{{.Scope.ProjectEnvironment}}</strong>
+          <span class="rail-context__sub">{{.Scope.Organisation}}</span>
+        </div>
+        <nav class="portal-nav" aria-label="Client workspaces">
+          <a href="/app/overview" aria-current="page">Overview</a>
+          <a href="/app/models">Models</a>
+          <a href="/app/endpoints">Endpoints</a>
+          <a href="/app/usage">Usage</a>
+          <a href="/app/access">Access</a>
+          <a href="/app/billing">Billing</a>
+          <a href="/app/docs">Docs</a>
+        </nav>
+      </div>
+      <div class="rail-bottom">
+        <div class="rail-source" role="status">
+          <span class="status-dot" data-state="{{.Source.State}}" aria-hidden="true"></span>
+          <div>
+            <span class="rail-context__label">Data mode</span>
+            <strong>{{.Source.Badge}}</strong>
+          </div>
+        </div>
+        {{if .CSRFToken}}
+        <form method="post" action="/logout">
+          <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+          <button class="rail-signout" type="submit">Sign out <span aria-hidden="true">↗</span></button>
+        </form>
+        {{end}}
+      </div>
+    </aside>
+
+    <div class="portal-content">
+      <header class="portal-topbar">
+        <div class="topbar-leading">
+          <div class="scope-line" aria-label="Current context">
+            <span>{{.Scope.Organisation}}</span>
+            <span class="scope-slash" aria-hidden="true">/</span>
+            <span>{{.Scope.Project}}</span>
+            <span class="scope-slash" aria-hidden="true">/</span>
+            <span>{{.Scope.Environment}}</span>
+          </div>
+        </div>
+        <div class="topbar-trailing">
+          <span class="context-role">{{.User.Role}}</span>
+        </div>
+      </header>
+
+      <main id="portal-main" class="portal-main" tabindex="-1">
+        <div class="portal-main__inner">
+          <div class="global-state" id="global-state" data-state="{{.Source.State}}" role="status">
+            <span class="global-state__label">{{.Source.Label}}</span>
+            <span class="global-state__detail">{{.Source.Detail}}</span>
+            <time{{if .Source.AsOfValue}} datetime="{{.Source.AsOfValue}}"{{end}}>{{.Source.AsOfPhrase}}</time>
+          </div>
+
+          <section class="workspace workspace--overview" id="overview" aria-labelledby="overview-title">
+            <header class="workspace-heading">
+              <div>
+                <p class="eyebrow">Overview</p>
+                <h1 id="overview-title">Service overview</h1>
+                <p class="workspace-heading__lead">A scoped control room for this authenticated project/environment: confirm the route, understand consumption, and make the next safe call.</p>
+              </div>
+              <div class="heading-actions">
+                {{if .Route.RequiresModelChoice}}
+                <a class="button button--dark" href="/app/models">Choose a model <span aria-hidden="true">→</span></a>
+                {{else}}
+                <a class="button button--dark" href="/app/docs">Make a first call <span aria-hidden="true">→</span></a>
+                {{end}}
+                <a class="button button--quiet" href="/app/usage">Open usage</a>
+              </div>
+            </header>
+
+            <div class="overview-layout">
+              <article class="route-hero" data-state="{{.Route.State}}" aria-labelledby="overview-route-title">
+                <div class="route-hero__topline">
+                  <p class="panel-kicker">Can I call now?</p>
+                  <span class="state-pill">{{.Route.StateLabel}}</span>
+                </div>
+                <div class="route-hero__body">
+                  <div class="route-signal" aria-hidden="true">{{.Route.Signal}}</div>
+                  <div>
+                    <h2 id="overview-route-title">{{.Route.StatusLabel}}</h2>
+                    <p>{{.Route.StatusDetail}}</p>
+                  </div>
+                </div>
+                <div class="route-hero__facts">
+                  <div><span>Latest success</span><strong>{{.Route.LastSuccess}}</strong></div>
+                  <div><span>Latest route observation</span><strong>{{.Route.LastObservation}}</strong></div>
+                  <div><span>Route evidence freshness</span><strong>{{.Route.Freshness}}</strong></div>
+                </div>
+                <div class="route-hero__note" role="note">
+                  <strong>{{.Route.AttentionTitle}}</strong>
+                  <span>{{.Route.AttentionDetail}}</span>
+                </div>
+              </article>
+
+              <aside class="next-action panel panel--paper" aria-labelledby="next-action-title">
+                <p class="panel-kicker">Next safe action</p>
+                <h2 id="next-action-title">Send one bounded request</h2>
+                <p>Use the approved Alzette endpoint and model alias. Prompts and outputs stay out of this portal.</p>
+                <a href="/app/docs" class="text-link">Open the copy-safe call guide <span aria-hidden="true">↗</span></a>
+                <div class="source-note">
+                  <span>Current scope</span>
+                  <strong>{{.Scope.ProjectEnvironment}}</strong>
+                  <small>{{.Scope.Detail}}</small>
+                </div>
+              </aside>
+            </div>
+
+            <section class="execution-band" aria-labelledby="execution-title">
+              <div class="execution-band__intro">
+                <p class="panel-kicker">Selected route / service plan</p>
+                <h2 id="execution-title">{{.Route.CapacityHeadline}}</h2>
+                <p>{{.Route.BoundaryDetail}}</p>
+              </div>
+              <div class="execution-band__facts">
+                <div><span>Execution</span><strong>{{.Route.ExecutionClass}}</strong></div>
+                <div><span>Service mode</span><strong>{{.Route.CapacityMode}}</strong></div>
+                <div><span>Dedicated allocation</span><strong>{{.Route.DedicatedAllocation}}</strong></div>
+              </div>
+            </section>
+
+            <div class="overview-lower">
+              <section class="ledger-panel panel" aria-labelledby="overview-usage-title">
+                <div class="panel-heading">
+                  <div>
+                    <p class="panel-kicker">Authenticated project/environment</p>
+                    <h2 id="overview-usage-title">Usage at a glance</h2>
+                  </div>
+                  <a class="text-link" href="/app/usage">Inspect usage <span aria-hidden="true">→</span></a>
+                </div>
+                <dl class="metric-ledger metric-ledger--overview">
+                  <div><dt>Logical requests</dt><dd>{{.Usage.LogicalRequests}}</dd></div>
+                  <div><dt>Successful requests</dt><dd>{{.Usage.Successful}}</dd></div>
+                  <div><dt>Tokens / finality</dt><dd>{{.Usage.TokensFinality}}</dd></div>
+                  <div><dt>p95 latency</dt><dd>{{.Usage.P95Latency}}</dd></div>
+                </dl>
+                {{if .Usage.Zero}}<p class="empty-message">No inference requests were recorded for this project/environment. Signing into the portal does not create model usage.</p>{{end}}
+              </section>
+              <aside class="source-panel panel panel--paper" aria-labelledby="overview-source-title">
+                <div class="panel-heading">
+                  <div>
+                    <p class="panel-kicker">Provenance</p>
+                    <h2 id="overview-source-title">What this view knows</h2>
+                  </div>
+                </div>
+                <dl class="source-list">
+                  <div><dt>Source</dt><dd>{{.Source.Kind}}</dd></div>
+                  <div><dt>Finality</dt><dd>{{.Source.Finality}}</dd></div>
+                  <div><dt>Freshness</dt><dd>{{.Source.Freshness}}</dd></div>
+                  <div><dt>As of</dt><dd>{{.Source.AsOfText}}</dd></div>
+                </dl>
+              </aside>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

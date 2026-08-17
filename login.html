@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Sign in to the Alzette client portal.">
+  <title>Sign in — Alzette Systems</title>
+  <link rel="icon" href="alzette-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="login.css">
+  <meta name="alzette-api-mode" content="fallback">
+  <script src="portal.js" defer></script>
+</head>
+<body class="login-page">
+  <main class="login-shell">
+    <section class="login-panel" aria-labelledby="login-title">
+      <a class="login-brand" href="/app/overview" aria-label="Alzette client portal">
+        <img src="alzette-mark.svg" alt="" width="30" height="30">
+        <span>alzette<span>.systems</span></span>
+      </a>
+      <p class="login-kicker">Client portal</p>
+      <h1 id="login-title">Welcome back.</h1>
+      <p class="login-lead">Sign in to review your scoped route, usage ledger, access, and first-call guide.</p>
+
+      <div class="login-transport-notice" data-transport-notice role="note" hidden>
+        <span aria-hidden="true">!</span>
+        <span>LAN PoC · connection is not TLS-protected.</span>
+      </div>
+
+      <form class="login-form" id="login-form" method="post" action="/login" autocomplete="on">
+        <label for="login-username">Username<input id="login-username" name="username" type="text" autocomplete="username" required></label>
+        <label for="login-password">Password<input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
+        <p class="login-guidance">Use the portal credentials issued for this environment. A human portal password is separate from the inference API key used by applications.</p>
+        <p class="login-error" id="login-error" role="alert" hidden></p>
+        <button class="login-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="login-footnote">Your sign-in is submitted to the portal host and is not stored in this browser by Alzette.</p>
+    </section>
+    <aside class="login-aside" aria-label="Portal boundary">
+      <p class="login-aside__mark" aria-hidden="true">/</p>
+      <p class="login-aside__eyebrow">Scoped control room</p>
+      <h2>One clear place to see what the authenticated project/environment knows.</h2>
+      <p>Route evidence, logical usage, safe request metadata, and credential lifecycle stay within the server-authorised scope.</p>
+      <div class="login-aside__rule"></div>
+      <span>External pilot and shared capacity are labelled from connected route data.</span>
+    </aside>
+  </main>
+</body>
+</html>
