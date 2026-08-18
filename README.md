@@ -67,6 +67,31 @@ docker compose up --build -d
 docker compose ps
 ```
 
+### Remote dashboard ingress
+
+The marketing site and authenticated product may run on different servers.
+Keep `alzette.systems` on the landing-page server and route these DNS names to
+the dashboard server:
+
+- `app.alzette.systems` — portal and control API
+- `auth.alzette.systems` — workforce OAuth/OIDC
+- `inference.alzette.systems` — OpenAI-compatible inference gateway
+
+On a dashboard host whose Traefik instance shares `traefik-net`, start the
+canonical ingress override with:
+
+```sh
+docker compose -f compose.yaml -f compose.traefik.yaml config --quiet
+docker compose -f compose.yaml -f compose.traefik.yaml up -d
+```
+
+The override enables secure cookies and exact HTTPS public origins while the
+services continue speaking HTTP only on the private Docker network. The edge
+in front of Traefik must provide a valid public certificate for all three
+hostnames and encrypted transport to the trusted origin; a DNS record or
+Traefik label alone is not TLS evidence. Do not expose the stack with the
+repository's local demonstration passwords or client secret.
+
 - Gateway: <http://localhost:8080>
 - Client portal: <http://localhost:8081/login>
 - Public landing page: <http://localhost:8082/>

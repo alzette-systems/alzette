@@ -1,0 +1,74 @@
+# Canonical remote ingress for the dashboard server.
+#
+# The marketing site owns alzette.systems on a separate server. This override
+# exposes only the authenticated control plane, identity provider, and
+# inference gateway through the dashboard server's existing Traefik network.
+# Use with:
+#   docker compose -f compose.yaml -f compose.traefik.yaml up -d
+
+services:
+  casdoor:
+    environment:
+      origin: https://${ALZETTE_AUTH_HOST:-auth.alzette.systems}
+    networks:
+      - default
+      - traefik
+    ports: !reset []
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik-net}
+      traefik.http.routers.alzette-auth.rule: Host(`${ALZETTE_AUTH_HOST:-auth.alzette.systems}`)
+      traefik.http.routers.alzette-auth.entrypoints: ${TRAEFIK_ENTRYPOINT:-web}
+      traefik.http.routers.alzette-auth.service: alzette-auth
+      traefik.http.routers.alzette-auth.middlewares: alzette-auth-forwarded-proto
+      traefik.http.services.alzette-auth.loadbalancer.server.port: "19084"
+      traefik.http.middlewares.alzette-auth-forwarded-proto.headers.customrequestheaders.X-Forwarded-Proto: https
+
+  casdoor-bootstrap:
+    environment:
+      ALZETTE_WORKFORCE_OIDC_REDIRECT_URL: https://${ALZETTE_CONTROL_HOST:-app.alzette.systems}/login/oidc/callback
+      ALZETTE_WORKFORCE_AGENT_OIDC_REDIRECT_URL: http://127.0.0.1:43127/callback
+
+  control:
+    environment:
+      ALZETTE_PUBLIC_CONTROL_URL: https://${ALZETTE_CONTROL_HOST:-app.alzette.systems}
+      ALZETTE_PUBLIC_GATEWAY_URL: https://${ALZETTE_GATEWAY_HOST:-inference.alzette.systems}
+      ALZETTE_ALLOW_INSECURE_PUBLIC_GATEWAY: "false"
+      ALZETTE_PORTAL_COOKIE_SECURE: "true"
+      ALZETTE_WORKFORCE_OIDC_ISSUER: https://${ALZETTE_AUTH_HOST:-auth.alzette.systems}
+      ALZETTE_WORKFORCE_OIDC_REDIRECT_URL: https://${ALZETTE_CONTROL_HOST:-app.alzette.systems}/login/oidc/callback
+      ALZETTE_WORKFORCE_AGENT_OIDC_REDIRECT_URL: http://127.0.0.1:43127/callback
+      ALZETTE_ALLOW_INSECURE_WORKFORCE_OIDC: "false"
+    networks:
+      - default
+      - traefik
+    ports: !reset []
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik-net}
+      traefik.http.routers.alzette-control.rule: Host(`${ALZETTE_CONTROL_HOST:-app.alzette.systems}`)
+      traefik.http.routers.alzette-control.entrypoints: ${TRAEFIK_ENTRYPOINT:-web}
+      traefik.http.routers.alzette-control.service: alzette-control
+      traefik.http.routers.alzette-control.middlewares: alzette-control-forwarded-proto
+      traefik.http.services.alzette-control.loadbalancer.server.port: "8081"
+      traefik.http.middlewares.alzette-control-forwarded-proto.headers.customrequestheaders.X-Forwarded-Proto: https
+
+  gateway:
+    networks:
+      - default
+      - traefik
+    ports: !reset []
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik-net}
+      traefik.http.routers.alzette-gateway.rule: Host(`${ALZETTE_GATEWAY_HOST:-inference.alzette.systems}`)
+      traefik.http.routers.alzette-gateway.entrypoints: ${TRAEFIK_ENTRYPOINT:-web}
+      traefik.http.routers.alzette-gateway.service: alzette-gateway
+      traefik.http.routers.alzette-gateway.middlewares: alzette-gateway-forwarded-proto
+      traefik.http.services.alzette-gateway.loadbalancer.server.port: "8080"
+      traefik.http.middlewares.alzette-gateway-forwarded-proto.headers.customrequestheaders.X-Forwarded-Proto: https
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik-net}
