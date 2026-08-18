@@ -58,21 +58,27 @@ Evaluation happens under compliance and procurement scrutiny: security packs, se
 
 ## Capabilities and Constraints
 
-Current implementation contract: one OpenAI-compatible Chat Completions text/function-tool subset with bounded buffered and SSE responses; operator-controlled tenant/project/environment/model-alias routing; separate human sessions and one-time workload keys; one logical customer request separated from internal target attempts; metadata-only usage records; route-bound service plans; exact scoped usage, attribution, rollups, opt-in probes, and safe exports; an authenticated curated Models catalogue, resumable shared/dedicated endpoint configurations, immutable dedicated quotes, hosted-payment state, immutable sizing intent for deployment/capacity requests, and separate commercial/payment/runtime evidence across Overview, Usage, Endpoints, Models, Billing, Access, and Docs; no prompt/output persistence in the current PoC; a standalone database-independent public landing/docs process; single-machine Docker Compose deployment.
+Current implementation contract: one OpenAI-compatible Chat Completions text/function-tool subset with bounded buffered and SSE responses; operator-controlled tenant/project/environment/model-alias routing; separate human sessions and one-time workload keys; explicit operator-reconciled company ownership plus owner-managed, scope-bound employee access groups; a unified server-rendered Access workspace for People, Groups, and owner-only Application access; exact-email employee invitation creation, manual one-time-link delivery, resend/revoke, scanner-safe setup, and OIDC/PKCE acceptance; a digest-pinned loopback Casdoor service and deterministic bootstrap; group-filtered employee agent-context discovery; OAuth-token validation and introspection; digest-only, alias-bounded `alz_u_` credentials expiring within ten minutes; strict `alz_k_`/`alz_u_` gateway dispatch, current-policy rechecks, revocation, and human request attribution; a memory-only `alzette-agent` demo helper that owns browser PKCE, in-process identity refresh, context selection, short-token remint, an authenticated ephemeral loopback proxy, exit revocation, an isolated Pi 0.84.2 provider, and verified local Linux custom-provider paths for Jan Desktop 0.8.4 and Goose Desktop 1.46.0; one logical customer request separated from internal target attempts; metadata-only usage records; route-bound service plans; exact scoped usage, attribution, rollups, opt-in probes, and safe exports; an authenticated curated Models catalogue, resumable shared/dedicated endpoint configurations, immutable dedicated quotes, hosted-payment state, immutable sizing intent for deployment/capacity requests, and separate commercial/payment/runtime evidence across Overview, Usage, Endpoints, Models, Billing, Access, and Docs; no prompt/output persistence in the current PoC; a standalone database-independent public landing/docs process; single-machine Docker Compose deployment. Transactional email, ownership transfer/recovery, durable protected-refresh storage, automatic native-client configuration, signed cross-platform client packaging, remote TLS, broader client version/OS support, and production Casdoor/offboarding/restore evidence are not implemented. Without complete OIDC configuration, invitations remain pending and the acceptance page says sign-in is unavailable.
 
 Current human accounts are operator-provisioned usernames/passwords. The target
 customer-account experience is hybrid self-service B2B: a person verifies a
 business email, authenticates through Alzette's self-hosted identity service,
-and enters an isolated evaluation organisation with a hard-capped shared route;
-approval converts that same identity and organisation into a customer boundary
-eligible for dedicated deployment. Authorised customer administrators can
-invite teammates. Interactive employees authenticate agents with short-lived,
-membership-bound human access rather than permanent personal API keys;
-service-account keys remain available for applications and unattended
-workloads. [`ACCOUNT_ONBOARDING_PRD.md`](../prd/ACCOUNT_ONBOARDING_PRD.md) defines the
-account lifecycle and [`WORKFORCE_AGENT_ACCESS_PRD.md`](../prd/WORKFORCE_AGENT_ACCESS_PRD.md)
-defines invited-employee agent access. Neither is current implementation
-evidence.
+and becomes the organisation's one current owner inside an isolated evaluation
+organisation with a hard-capped shared route; approval converts that same
+identity and organisation into a customer boundary eligible for dedicated
+deployment. The owner invites employees and assigns each employee to one or
+more owner-managed access groups. Groups, not employee-selected roles or direct
+per-person exceptions, determine which active Alzette model endpoints an
+employee can discover and use. The owner can manage and use every active model
+endpoint in the organisation. Interactive people authenticate agents with
+short-lived, membership-bound human access rather than permanent personal API
+keys; service-account keys remain available for applications and unattended
+workloads. Ownership transfer is explicit and atomic: an organisation never
+has two current owners or intentionally becomes ownerless.
+[`ACCOUNT_ONBOARDING_PRD.md`](../prd/ACCOUNT_ONBOARDING_PRD.md) defines the account
+lifecycle and [`WORKFORCE_AGENT_ACCESS_PRD.md`](../prd/WORKFORCE_AGENT_ACCESS_PRD.md)
+defines invited-employee agent access. Implemented slices are evidence only for
+their tested local configuration; the broader roadmap remains non-evidence.
 
 Service stage: **offline-validated OpenRouter-compatible product PoC for the first client**. The opt-in live OpenRouter smoke is pending a newly rotated credential, so a real-provider pilot is not yet evidenced. MeluXina access, allocation, model deployment, private LAN serving, Luxembourg execution, dedicated compute, production SLA, and production capacity are not yet established as live operational evidence. The customer portal and technical documentation must continue to label that evidence exactly; the public landing page describes the intended private Luxembourg service and keeps contract-specific details subject to the applicable client agreement.
 
@@ -105,7 +111,7 @@ Voice (binding): calm, contract-first, no hype adjectives, evidence over claims.
 
 ## Evidence on Hand
 
-`POC_BOUNDARY.md` (controlling current implementation contract), `PORTAL_PRD.md` (broader product requirements), `ENDPOINTS_PRD.md` (implemented endpoint-acquisition contract and remaining gates), `ACCOUNT_ONBOARDING_PRD.md` (future account-onboarding contract), `WORKFORCE_AGENT_ACCESS_PRD.md` (future invited-employee OAuth/proxy contract), the running Slice 0–2 portal/gateway, deterministic compatible-target and endpoint/billing integration evidence, and the verified request contract. Absent and not to be fabricated: customer names, testimonials, case studies, certifications, real benchmark numbers, SLA figures, MeluXina or MeluXina-AI access/deployments/preferred status, live catalogue supply/prices/capacity unless actually seeded from reviewed evidence, dedicated OpenRouter capacity, live Stripe checkout evidence, an implemented self-registration/evaluation workflow, implemented Casdoor/employee-agent access, an implemented private interaction vault, or an implemented private improvement-dataset, evaluation, or fine-tuning workflow. Schema support, a catalogue card, or a customer-facing concept alone is not supply or capability evidence.
+`POC_BOUNDARY.md` (controlling current implementation contract), `PORTAL_PRD.md` (broader product requirements), `ENDPOINTS_PRD.md` (implemented endpoint-acquisition contract and remaining gates), `ACCOUNT_ONBOARDING_PRD.md` (future account-onboarding contract), `WORKFORCE_AGENT_ACCESS_PRD.md` (invited-employee OAuth/proxy contract), the running Slice 0–2 portal/gateway, deterministic compatible-target and endpoint/billing integration evidence, the local pinned-Casdoor invitation/OAuth/human-credential/Pi vertical-slice evidence, and the verified request contract. Absent and not to be fabricated: customer names, testimonials, case studies, certifications, real benchmark numbers, SLA figures, MeluXina or MeluXina-AI access/deployments/preferred status, live catalogue supply/prices/capacity unless actually seeded from reviewed evidence, dedicated OpenRouter capacity, live Stripe checkout evidence, an implemented self-registration/evaluation workflow, production mail/TLS/remote employee access, durable protected-refresh storage or a signed cross-platform client, support for untested desktop clients, an implemented private interaction vault, or an implemented private improvement-dataset, evaluation, or fine-tuning workflow. Schema support, a catalogue card, or a customer-facing concept alone is not supply or capability evidence.
 
 ## Product Principles
 
@@ -116,12 +122,17 @@ Voice (binding): calm, contract-first, no hype adjectives, evidence over claims.
 5. Luxembourg is the production differentiator—the public page sells that operating model, while every authenticated runtime surface reports the actual execution class until the private route is tested and contracted.
 6. Buy endpoint capacity, not infrastructure trivia—the customer selects a model and an evidenced capacity/price profile; Alzette owns machine placement and operations unless a contract explicitly requires customer-site hardware.
 7. Preserve the endpoint while capacity changes—adding dedicated capacity updates the deployment behind the stable route and never silently changes model, tenancy mode, location, or commercial commitment.
-8. Separate people from workloads—interactive employees use short-lived, revocable human-agent access; applications and unattended automation use service accounts. Neither credential can impersonate the other.
-9. Customer interactions are valuable company assets—a subscribed company can
+8. Separate people from workloads—interactive people use short-lived, revocable human-agent access; applications and unattended automation use service accounts. Neither credential can impersonate the other.
+9. Keep company authority simple—one current owner manages the company,
+   employees, groups, endpoints, billing, and application access; every other
+   person is an employee whose model access comes only from enabled group
+   membership; the owner can use every active company endpoint. Ownership
+   transfer is explicit, atomic, and recoverable.
+10. Customer interactions are valuable company assets—a subscribed company can
    retain prompts and outputs in its private interaction vault under its own
    recorded access, purpose, retention, export, deletion, and improvement
    policy. Alzette does not appropriate or cross-use them.
-10. Model Improvement is a distinct Alzette-operated branch—content moves from
+11. Model Improvement is a distinct Alzette-operated branch—content moves from
     the private vault into an evaluation or adaptation dataset only under a
     separate recorded purpose and approval, with versioned evidence and a
     rollback decision.

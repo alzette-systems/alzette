@@ -101,6 +101,9 @@ dashboard attached to one operator-provisioned route.
 - PostgreSQL migration `0010_capacity_request_intent`, which preserves bounded
   workload-sizing facts and hashed retry identity on immutable deployment and
   capacity requests;
+- PostgreSQL migration `0011_endpoint_team_size`, which adds a bounded,
+  nullable people-count intent to endpoint drafts and immutable submitted
+  deployment requests without deriving it from concurrency;
 - authenticated Models, model detail, Endpoints, endpoint/request detail,
   configurator, capacity-request, and Billing workspaces;
 - tenant-scoped customer APIs for catalogue reads, resumable endpoint drafts,
@@ -197,10 +200,10 @@ later without migrating endpoints, Stripe Customers, quotes, or usage.
 |---|---|---|
 | Catalogue model | Customer-readable model family | Availability, a route, or a price |
 | Model release | Immutable reviewed version with licence/support evidence | A deployed runtime |
-| Deployment profile | Model/runtime/hardware/service-mode bundle | Customer control of a target or host |
+| Deployment profile | Internal model/runtime/hardware/service bundle selected by Alzette | A customer-facing choice or customer control of a target or host |
 | Endpoint capacity unit | Profile-defined capacity increment | Linear scaling unless the metric says so |
 | Offer | Profile and commercial terms for an eligible organisation/scope | Runtime readiness |
-| Endpoint configuration | Customer intent for model, mode, scope, workload, alias, and units | A quote or commitment |
+| Endpoint configuration | Customer intent for model, service, scope, and people count | A customer-selected profile, quote, automated recommendation, or commitment |
 | Quote | Immutable, expiring organisation-specific price/capacity snapshot | Payment, allocation, or readiness |
 | Payment requirement | Commercial condition attached to an accepted offer/quote | Endpoint activation by itself |
 | Deployment | Actual provisioned model/runtime lifecycle | A healthy route until validated |
@@ -317,8 +320,9 @@ proven.
 ```text
 Models -> reviewed release -> Dedicated private
   -> choose project/environment and stable alias
-  -> describe workload, context, concurrency and latency intent
-  -> select eligible capacity profile and units
+  -> state how many people need to use the endpoint
+  -> Alzette applies the reviewed server-owned default context during managed review
+  -> Alzette selects and attaches an eligible deployment profile and capacity floor
   -> submit request -> business/operations review
   -> receive immutable expiring quote
   -> reauthenticate and accept quote
@@ -514,19 +518,39 @@ unverified MeluXina availability are forbidden.
 The configurator is a resumable, server-backed workflow:
 
 1. **Model:** exact release, immutable after submission.
-2. **Mode:** shared or dedicated, with boundary explanation.
+2. **Service:** shared or dedicated, with boundary explanation. Unavailable
+   services are disabled; when only one is eligible it is selected by default.
 3. **Scope:** organisation/project/environment and stable alias.
-4. **Workload:** use case, expected context, concurrency, latency, and volume;
-   no prompt/content samples are requested.
-5. **Capacity:** eligible profile and capacity units for dedicated; shared
-   allowance for shared.
-6. **Commercial review:** price, term, tax finality, qualification, and what
+4. **Team size:** exactly one editable field:
+   - label: **How many people need to use this endpoint?**
+   - helper: **Count everyone who may use it, not only people using it at the
+     same time. Alzette uses this when reviewing the managed service. The
+     selected model’s default context is used.**
+   - validation: **Enter a whole number between 1 and 10,000.**
+5. **Review:** customer intent, price/term finality when available, and what
    happens next.
-7. **Submit/Pay:** create a request or redirect to Stripe depending on mode and
-   eligibility.
+6. **Submit/Pay:** create a request or redirect to Stripe depending on service
+   and eligibility.
 
 Every step is validated server-side. Back/refresh preserves a safe draft. A
 draft contains no secret, prompt, target URL, or payment detail.
+
+Step 4 renders no use-case, customer-selected context, concurrency, request
+volume, or workload-priority control. The people count is required to advance
+and submit in the revised UI, while an incomplete draft may exist without it.
+The server uses a reviewed default belonging to the selected offer/profile;
+it must not infer that default from the model's maximum context window. The
+wording above describes Alzette's managed review, not evidence that automated
+sizing or default-context machinery exists today.
+
+Deployment profiles, offer codes, profile codes, aliases, and capacity-unit
+floors are resolved and attached by Alzette. They do not render as customer
+controls and the revised browser payload cannot select them. The model picker
+only enables models with at least one currently eligible service; the server
+rechecks that eligibility when it creates the draft.
+
+This amendment does not change the separate post-creation capacity-increase
+flow in section 8.4, its dialog, or its API contract.
 
 ### 10.4 Request and fulfilment progress
 
@@ -546,6 +570,12 @@ the four rails. Examples:
 - “Payment received — capacity allocation has not started.”
 - “Deployment validating — the endpoint is not callable yet.”
 - “Endpoint ready — create an application key or make a test call.”
+
+For a request created under the revised contract, the submitted-intent summary
+shows **People using this endpoint** and the stored people count. Historical or
+legacy-client requests without that field show **Not recorded**. The customer
+progress UI does not substitute concurrency for people and does not expose the
+legacy technical workload fields.
 
 ### 10.5 Endpoints list
 
@@ -601,10 +631,10 @@ lands back on the exact Alzette endpoint/request context.
 |---|---|---|
 | EP-P0-001 | The portal MUST expose Models and Endpoints as distinct workspaces. | A first-time administrator can discover and acquire an endpoint; existing route operations remain available under Endpoints. |
 | EP-P0-002 | Catalogue responses MUST be filtered by server-derived organisation/project/environment eligibility. | Cross-tenant/profile IDs fail closed and do not reveal entry existence or price. |
-| EP-P0-003 | Every selectable entry MUST identify an exact reviewed model release and eligible deployment profile. | A model alias or catalogue family alone cannot be submitted. |
+| EP-P0-003 | Every selectable model MUST have an exact reviewed release and at least one server-resolvable eligible deployment profile. | The browser selects no profile; Alzette resolves one transactionally or fails closed. |
 | EP-P0-004 | Shared and dedicated offers MUST remain visibly and technically distinct. | Shared activation cannot bind a dedicated target; dedicated fulfilment cannot bind a shared target or silently fall back. |
 | EP-P0-005 | Customers MUST configure endpoints without raw infrastructure fields. | Browser/API schemas contain no target URL, host, provider slug/model ID, secret, image, or arbitrary hardware ID. |
-| EP-P0-006 | Dedicated configurations MUST capture workload intent and capacity units. | Profiles enforce min/max units and show evidence/finality for capacity metrics. |
+| EP-P0-006 | The revised endpoint configurator MUST capture an expected people count while Alzette owns profile and capacity selection. | Step 4 exposes exactly one required integer from 1 through 10,000; no profile, offer code, or capacity-unit control appears in endpoint creation. |
 | EP-P0-007 | Quotes MUST be immutable, expiring, and organisation/scope-bound. | Expired, superseded, changed, or cross-tenant quote acceptance fails; historical accepted quotes remain readable. |
 | EP-P0-008 | Quote acceptance MUST require an authorised recent human session. | API keys and stale/CSRF-less sessions cannot accept commercial terms; actor and snapshot are audited. |
 | EP-P0-009 | Stripe amounts and object mappings MUST be server-owned. | Manipulating amount, currency, Product/Price ID, Customer ID, quote ID, return URL, or metadata cannot change the purchase. |
@@ -648,6 +678,52 @@ POST /api/portal/reauthenticate
 All mutation APIs require the human session, CSRF protection, server-derived
 scope, role enforcement, and an idempotency token. Quote acceptance and payment
 initiation additionally require recent reauthentication.
+
+The revised browser configuration payload contains only customer intent:
+
+```json
+{
+  "model_slug": "alzette-chat",
+  "service_mode": "shared",
+  "workload": {
+    "expected_user_count": 20
+  }
+}
+```
+
+For this managed-selection shape, `service_mode` is `shared` or `dedicated`.
+Alzette selects the published eligible offer/profile, derives the approved
+alias, and applies the profile's minimum capacity units inside the database
+transaction. `offer_code`, `profile_code`, `endpoint_alias`, and
+`capacity_units` must be absent. Legacy clients may continue using the complete
+explicit shape for compatibility, but the customer portal never does.
+
+The domain field is `Workload.ExpectedUserCount`; its JSON name is
+`workload.expected_user_count`. When supplied, it is a JSON integer from `1`
+through `10000`, inclusive. Zero, negative values, fractions, strings, and
+larger values fail validation. The revised UI requires the field before it can
+advance or submit, but the API keeps it optional so existing clients and
+records remain compatible.
+
+The legacy `use_case`, `expected_context_tokens`, `expected_concurrency`,
+`expected_requests_per_minute`, `latency_priority`, and
+`expected_monthly_requests` members remain accepted, persisted, and returned
+for existing API clients. They are not rendered or sent by the revised
+endpoint-creation UI and do not substitute for `expected_user_count`. A UI
+update to an existing draft must preserve omitted legacy values rather than
+clear them. Existing immutable deployment requests are not backfilled or
+rewritten; a missing people count remains `null` and is presented as **Not
+recorded**. The people count participates in idempotency comparison and becomes
+immutable when copied into a submitted deployment request.
+
+The revised endpoint-creation UI does not send a context size. Managed review
+must use a reviewed server-owned default for the selected offer/profile; a
+catalogue maximum context window is not that default. Legacy API clients may
+still send `expected_context_tokens` for compatibility, but it does not
+override the revised flow's default. The API must not claim an automated
+recommendation until the corresponding machinery and evidence exist. The
+separate `POST /api/portal/endpoints/{id}/capacity-requests` contract is
+unchanged by this amendment.
 
 ### Stripe ingress
 
@@ -764,10 +840,21 @@ key unless an implemented reconciliation operation proves it needs one.
 Migration `0008` remains the catalogue/deployment base. Migration
 `0009_endpoint_billing_control_plane` introduces the payment and endpoint
 control records without adding Stripe fields to routes or inference requests.
-Migration `0010_capacity_request_intent` makes the sizing intent and hashed
-retry identity on initial deployment and capacity requests durable and
-immutable; it contains no prompt, output, target, provider secret, or raw
-idempotency token.
+Migration `0010_capacity_request_intent` currently makes the legacy technical
+workload fields and hashed retry identity on initial deployment and capacity
+requests durable and immutable; it contains no prompt, output, target,
+provider secret, or raw idempotency token.
+
+Migration `0011_endpoint_team_size` adds a nullable `expected_user_count`
+integer to endpoint configurations and deployment requests, constrained to
+`1..10000` when present. It is copied into the immutable submitted-request
+snapshot and included in the hashed request intent.
+Existing rows remain `NULL`; no migration derives people count from concurrency
+or any other legacy field. Existing legacy columns remain intact for API and
+historical compatibility. A reviewed server-owned default context belongs to
+the selected offer/profile and must be represented separately from the model's
+maximum context-window capability; this PRD does not claim that representation
+or an automated sizing engine is implemented.
 
 ### `billing_accounts`
 
@@ -887,6 +974,26 @@ The portal must never say `Subscribed`, `Active`, or `Available` without naming
 which domain is active: commercial subscription, entitlement, deployment,
 route, or runtime.
 
+The endpoint configurator uses the following exact Step 4 content:
+
+- step title: **4. Team size**;
+- field label: **How many people need to use this endpoint?**;
+- helper: **Count everyone who may use it, not only people using it at the same
+  time. Alzette uses this when reviewing the managed service. The selected
+  model’s default context is used.**;
+- validation: **Enter a whole number between 1 and 10,000.**
+
+The field is a required whole-number control in the revised UI. Missing,
+fractional, zero, negative, and over-limit values use the validation text above
+and block progression and submission. Loading or restoring a legacy draft does
+not expose its technical workload fields; it asks for the missing people count
+before revised-UI submission. Request progress uses **People using this
+endpoint** and either the value or **Not recorded**.
+
+The creation UI never says or exposes **profile**, **offer code**, or
+**capacity units**. It describes shared/dedicated as services and states that
+Alzette selects and manages the compatible deployment configuration.
+
 ## 17. Security, privacy, and operational requirements
 
 - All customer reads/mutations derive scope from the authenticated human
@@ -918,6 +1025,17 @@ route, or runtime.
 
 - eligibility filtering and price visibility;
 - model/profile/unit validation;
+- `workload.expected_user_count` accepts only JSON integers from `1` through
+  `10000`, while omission remains valid for legacy API clients;
+- revised-UI creation sends the people count and none of the legacy technical
+  workload members;
+- legacy payloads continue to round-trip, and updating a legacy draft through
+  the revised UI preserves omitted legacy values;
+- the people count participates in idempotency comparison and submitted-request
+  immutability; concurrency is never migrated or presented as people count;
+- the revised UI exposes no context control and sends no context value; the
+  reviewed default remains server-owned and separate from the model's maximum
+  context-window capability;
 - exact customer payload allow-list;
 - quote expiry/supersede/immutability;
 - role, CSRF, and recent-reauth enforcement;
@@ -945,6 +1063,10 @@ route, or runtime.
 ### Database and tenant isolation
 
 - migration up/down/reapply and rollback;
+- additive nullable people-count columns preserve existing rows and enforce
+  `1..10000` when present;
+- historical workload fields remain unchanged, and submitted people counts
+  cannot be mutated;
 - two tenants cannot enumerate or mutate catalogue eligibility, drafts, quotes,
   payment requirements, invoices, endpoints, or capacity revisions;
 - one Stripe Customer maps to one organisation;
@@ -971,6 +1093,15 @@ route, or runtime.
 ### Browser/accessibility
 
 - keyboard-complete catalogue, configurator, quote acceptance, and return flow;
+- Step 4 exposes exactly one editable, required, correctly labelled people-count
+  field with the approved helper and validation wording;
+- values `1` and `10000` pass; missing, fractional, zero, negative, and
+  over-limit values block progression and submission;
+- refresh/back restores the people count, legacy requests show **Not recorded**,
+  and no use-case, context, concurrency, volume, or workload-priority control
+  appears in endpoint creation;
+- the post-creation capacity-increase dialog and request behavior remain
+  unchanged;
 - visible focus and meaningful headings/status regions;
 - no colour-only status;
 - 390px, 1024px, and 1440px layouts;

@@ -2,7 +2,7 @@
 
 **Status:** proposed implementation contract; not yet implemented
 
-**Date:** 2026-08-15
+**Date:** 2026-08-17
 
 **Owners:** product, platform, and security
 
@@ -17,20 +17,32 @@ ownership never depends on the individual who signed up, accepted a quote, or
 paid. [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md) controls
 new external human authentication and invited-employee inference access.
 
-## 2026-08-15 identity decision
+## 2026-08-17 identity and company-authority decision
 
 New external self-service and invited users authenticate through self-hosted
 Casdoor. Casdoor owns their password/passkey, MFA, recovery, OAuth/OIDC, and
-upstream federation; Alzette owns the invitation, user link, membership, role,
-tenant context, and route authority. Existing local password users remain a
-bounded migration path.
+upstream federation; Alzette owns the invitation, user link, singular company
+ownership, employee state, access groups, group-to-model grants, tenant
+context, and route authority. Existing local password users remain a bounded
+migration path.
+
+Each active organisation has exactly one current owner. Every other human is
+an employee. Ownership is a singular company relationship, not a selectable
+role. Only the owner manages employees, invitations, Alzette access groups,
+company endpoints, billing, and application access. The owner can manage and
+use every active company endpoint; employees use model endpoints only through
+enabled Alzette groups. There are no direct per-employee model grants and no
+customer-visible role picker. Normal invitations create employees only.
+Ownership transfer or operator-assisted
+recovery is explicit, recently authenticated/evidenced, audited, and atomic;
+an organisation never commits with zero or two current owners.
 
 Where this document says that a new external person chooses, stores, confirms,
 or resets an Alzette-managed local password, that implementation detail is
 superseded by [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md).
-The invitation, evaluation-organisation, role, mail, abuse, qualification, and
-membership state requirements here remain controlling. A portal/OIDC session
-still never authenticates inference directly: interactive employees receive
+The invitation, evaluation-organisation, ownership/group, mail, abuse,
+qualification, and employee-state requirements here remain controlling. A
+portal/OIDC session still never authenticates inference directly: interactive employees receive
 automated short-lived human-agent access, while applications and unattended
 workloads use separate service-account keys.
 
@@ -59,15 +71,17 @@ The lifecycle events must remain distinct:
 1. A person starts signup and verifies control of a business mailbox.
 2. The person creates or authenticates the matching Casdoor identity.
 3. One Alzette transaction links that identity and creates an isolated
-   evaluation organisation, development project, hard-capped shared service
-   plan, allow-listed route, and human membership.
+   evaluation organisation, singular current ownership, development project,
+   hard-capped shared service plan, allow-listed route, human company
+   membership, and one default employee access group granting the evaluation
+   endpoint.
 4. The person connects an interactive agent with short-lived human access or
    explicitly creates a separate one-time-reveal application key for a
    workload, then explores the curated catalogue and may prepare a deployment
    configuration or request business qualification.
 5. Alzette approves the business and a versioned quote before allocating or
    deploying dedicated infrastructure.
-6. An authorised organisation administrator invites colleagues, who create or
+6. The company owner creates access groups and invites employees, who create or
    authenticate their own Casdoor identities.
 
 A human login is never an inference key. Email verification proves control of
@@ -95,10 +109,10 @@ This work should produce the following outcomes:
   a sales conversation, payment, or operator-issued password;
 - every evaluation organisation is isolated, explicitly shared, hard-capped,
   and distinguishable from an approved customer organisation;
-- the first authorised customer administrator creates or authenticates their
+- the first company owner creates or authenticates their
   Casdoor identity without Alzette handling a password;
-- a customer administrator can add and remove colleagues within their own
-  authority;
+- the owner can add/remove employees and manage group model access within the
+  company;
 - a person can use Casdoor recovery without turning an inference credential
   into a login credential; legacy local-account recovery remains isolated;
 - a prospect can browse a curated catalogue and submit a non-binding dedicated
@@ -106,8 +120,8 @@ This work should produce the following outcomes:
 - business approval and quote acceptance can promote the same identity and
   organisation without copying usage or weakening tenant boundaries;
 - every signup, verification, evaluation provisioning, approval, invitation,
-  acceptance, role assignment, recovery, and revocation is attributable and
-  tenant-safe.
+  acceptance, ownership/group change, recovery, and revocation is attributable
+  and tenant-safe.
 
 ## 3. Current implementation baseline
 
@@ -126,7 +140,7 @@ Already implemented:
 - operator provisioning of organisation, project, environment, service plan,
   target, route, service account, API key, human user, and membership;
 - organisation/project/environment membership switching;
-- administrator management of non-human service accounts and scoped,
+- legacy administrator management of non-human service accounts and scoped,
   one-time-reveal application keys.
 
 Not implemented:
@@ -161,8 +175,9 @@ preserving the infrastructure boundary:
 - verification is single-use, expiring, non-enumerating, and required before
   creating the human user or evaluation organisation;
 - the user creates or authenticates their Casdoor identity and atomically
-  receives an `org_admin` membership in one new organisation marked
-  `evaluation`;
+  becomes the one current owner of a new organisation marked `evaluation`;
+- setup creates a default employee evaluation access group for later invites,
+  while the owner can use every active company endpoint directly;
 - the system creates one development project/environment and binds only the
   configured shared evaluation plan, model alias, and target;
 - the shared plan has restart-safe request/token/rate/concurrency limits and a
@@ -174,8 +189,8 @@ preserving the infrastructure boundary:
   recovery remains available during migration;
 - all paths are throttled, audited, tenant-isolated, and safe under retries,
   duplicate signup, and concurrent verification;
-- an organisation administrator can invite teammates only within the
-  evaluation organisation and the launch role ceiling.
+- the owner can create Alzette access groups and invite employees only within
+  the evaluation organisation; invitations select groups, never roles.
 
 P0 does **not** activate dedicated compute, accept payment, prove business
 authority, select an upstream target, or let a user alter the shared evaluation
@@ -187,7 +202,7 @@ closed before organisation creation rather than creating a misleading account.
 P1 converts an evaluation organisation into an approved customer boundary
 without creating a second identity or copying tenant data:
 
-- the administrator submits bounded legal/business and workload information;
+- the owner submits bounded legal/business and workload information;
 - the organisation can select an eligible curated model and deployment profile
   and request a versioned price/capacity quote;
 - an Alzette operator reviews authority, fit, model licence, capacity supply,
@@ -242,19 +257,17 @@ lifecycle requirement justifies it.
 | Actor | Can do | Cannot do |
 |---|---|---|
 | Unverified visitor | Submit one bounded signup and complete mailbox verification | Sign in, reserve a company name, consume inference, or create any tenant resource before verification |
-| Evaluation admin | Administer their isolated evaluation organisation; browse the catalogue; create a scoped evaluation key; submit qualification/deployment intent; invite teammates within policy | Claim verified-company status, change the shared allowance, select a target/raw machine, accept another organisation's quote, or activate dedicated compute |
+| Evaluation/company owner | Manage their isolated organisation, employees, groups, catalogue, endpoints, billing, and application access; use all active company model endpoints; submit qualification/deployment intent | Create a second owner, leave the company ownerless, grant a direct employee model exception, claim verified-company status, change the shared allowance, select a target/raw machine, accept another organisation's quote, or activate dedicated compute |
 | Alzette operator | Configure the shared evaluation offer; review business authority and deployment requests; issue quotes; approve conversion; provision dedicated capacity | Learn any user's identity-provider password; silently accept a quote/contract for the customer; expose provider or infrastructure credentials |
-| Organisation admin | List members and pending invitations in their organisation; invite any launch role; revoke an invitation; disable an authorised membership subject to last-admin protection | Act in another organisation; select an upstream target; grant a role outside the launch role set |
-| Project admin | List project members; invite `developer` or `viewer` into a project/environment they administer | Grant `org_admin` or `project_admin`; invite into another project; change an organisation role |
-| Developer/viewer | Accept their own invitation and manage their own login/recovery | Invite users, change roles, or infer membership outside their authorised context |
+| Employee | Accept their own invitation, manage their own login/recovery, and discover/use only models granted through their enabled groups | Invite or manage people/groups, receive direct model exceptions, act in another organisation, or create application credentials |
 | Existing user | Accept another membership after authenticating as the exact invited email identity | Use an invitation addressed to a different email; create a duplicate identity to bypass policy |
 | Application/service account | Authenticate inference calls with a scoped API key | Sign in to the human portal, accept an invitation, or manage members |
 
-The current database has no separate `org_owner` role. For P0, the first
-authorised owner is represented as `org_admin`. Last-admin protection prevents
-an organisation from disabling or demoting its only enabled `org_admin`
-without an operator-assisted transfer. A distinct owner role may be added only
-if a real governance requirement appears.
+The current database's legacy roles are migration evidence only. New customer
+authority resolves from the singular ownership record. No owner/employee or
+group authority is inferred from `org_admin`, `project_admin`, `developer`,
+`viewer`, or any Casdoor role/group claim. Ambiguous legacy organisations keep
+workforce capability disabled until an operator records one owner.
 
 ## 6. Lifecycle state machines
 
@@ -339,7 +352,7 @@ session and prevents all login.
    the workforce-agent identity contract.
 5. One PostgreSQL transaction locks the registration, rechecks state and the
    configured evaluation offer, then creates the user, evaluation organisation,
-   development project/environment, `org_admin` membership, organisation-bound
+   development project/environment, singular ownership, organisation-bound
    shared service plan, and allow-listed route to the preconfigured shared
    target. Every ID and policy value is server-derived.
 6. A portal session is issued only after commit. The first screen labels the
@@ -358,11 +371,11 @@ another organisation automatically.
 
 ### 7.2 Qualify the business and configure a dedicated endpoint
 
-1. An evaluation administrator opens Catalogue and selects an available model
+1. The company owner opens Catalogue and selects an available model
    release. The catalogue shows capabilities, licence/support state, context
    limit, lifecycle, and eligible deployment modes; it does not imply that
    capacity is allocated.
-2. The administrator selects `Dedicated private` and supplies workload intent:
+2. The owner selects `Dedicated private` and supplies workload intent:
    environment, expected concurrency, request rate, context size, latency
    priority, and desired capacity units. Customer data or prompts are not
    required.
@@ -377,7 +390,7 @@ another organisation automatically.
 5. Alzette issues a versioned quote that snapshots model/profile, units,
    accelerator class/count, capacity metrics, recurring and one-time price,
    currency, billing period, execution boundary, expiry, and evidence status.
-6. An authorised customer explicitly accepts the valid quote after
+6. The current owner explicitly accepts the valid quote after
    reauthentication. Acceptance records intent; payment, allocation,
    deployment, and route readiness remain separate states.
 7. The operator assigns infrastructure, deploys and validates the pinned model
@@ -394,18 +407,19 @@ automatically within its configured hard limits. Dedicated private deployment
 is customer-configured but operator-fulfilled until MeluXina allocation and
 deployment automation have passed their own release gate.
 
-### 7.3 First administrator of an operator-created business
+### 7.3 First owner of an operator-created business
 
 The invitation path remains available for an already approved organisation or
 a customer that must not use public signup:
 
-1. The operator provisions or confirms the organisation and exact membership
-   scope, then creates a first-administrator invitation.
+1. The operator provisions or confirms the organisation, then creates a
+   first-owner invitation that can establish ownership only through the
+   dedicated owner-recovery/creation transaction.
 2. The invitee follows a single-use link that establishes a clean setup
    session and creates or authenticates their Casdoor identity.
-3. One transaction creates or resolves the user, creates the exact membership,
-   marks the invitation accepted, writes audit events, and invalidates every
-   setup session for the invitation.
+3. One transaction creates or resolves the user, creates the company-person
+   relationship and singular current ownership, marks the invitation accepted,
+   writes audit events, and invalidates every setup session for the invitation.
 4. The user enters the portal in the invited context. No password, application
    key, target address, provider name, or capacity claim is sent by the
    operator.
@@ -413,20 +427,26 @@ a customer that must not use public signup:
 Legacy username reconciliation, replay, expiry, revoke, resend, and concurrent
 acceptance retain the existing fail-closed invitation rules.
 
-### 7.4 Invite a colleague
+### 7.4 Invite an employee
 
-1. An authorised admin opens Access → Members and selects `Invite member`.
-2. The admin enters an email, optional display name, role, project, and
-   environment. The UI explains the effective permissions before confirmation.
-3. The server derives the inviter's organisation and allowed scopes from the
-   current session. It ignores no client-supplied tenant authority and rejects
-   elevation beyond the inviter's policy.
+1. The current owner opens Access → People and selects `Invite an employee`.
+2. The owner enters an exact email, optional display name, and one or more
+   enabled same-company access groups. There is no role, project/environment,
+   ownership, or direct-model picker. The UI previews derived model endpoints
+   and reports assignment separately from runtime readiness.
+3. The server derives the company and owner authority from the current session,
+   resolves every group server-side, and rejects client-supplied role,
+   ownership, project/environment, endpoint, or tenant authority.
 4. If the person is already a member, the server returns an explicit
-   authenticated-admin result and does not create an invitation. If an active
-   invitation exists for the same email and scope, the operation is idempotent.
+   authenticated-owner result and does not create an invitation. If an active
+   invitation exists for the same email/company, the operation is idempotent
+   only for the same group snapshot; changing groups rotates/replaces the
+   invitation authority.
 5. Delivery uses email when configured. In manual mode, an acceptance URL is
-   revealed once to the inviting admin for out-of-band delivery.
-6. The invitee follows the same acceptance path as the first administrator.
+   revealed once to the inviting owner for out-of-band delivery.
+6. The invitee follows the same acceptance path as the first owner, except the
+   transaction creates an employee relationship and the recorded group
+   memberships and can never create ownership.
 7. The inviter can see `delivery pending`, `invited`, `accepted`, `expired`, or
    `revoked`, resend with a rotated token, or revoke a pending invitation.
 
@@ -459,14 +479,14 @@ customer workflow.
 
 - Revoking a pending invitation invalidates every setup session associated with
   it immediately.
-- Disabling a membership removes it from context selection and revokes sessions
-  currently using that membership.
+- Disabling an employee relationship removes it from context selection and
+  revokes sessions currently using that company relationship.
 - Disabling a human revokes all of their portal sessions.
 - Removing a human never revokes a service-account key implicitly. The UI must
   show separately owned application credentials and require an explicit key
   decision so production workloads are not accidentally broken.
-- The last enabled organisation admin cannot remove or demote themselves
-  without transferring authority or using the operator recovery path.
+- The current owner cannot be disabled, removed, or leave the company outside
+  an atomic ownership transfer or operator recovery transaction.
 
 ## 8. UX and content contract
 
@@ -477,7 +497,7 @@ customer workflow.
 | `/login` | Existing-user sign-in | `Continue with Alzette` through Casdoor for external users; bounded legacy username/password fallback; explicit separation from application API keys and human-agent access |
 | `/signup` | Begin self-service evaluation | Business email, person/organisation names, privacy and acceptable-use acknowledgement; exact shared-evaluation/no-payment boundary |
 | `/signup/verify` | Complete verified setup | Clean-URL setup session, Casdoor identity authentication/linking, evaluation-organisation label, expiry/error/retry state |
-| `/accept-invite` | New-user setup or existing-user membership acceptance | Inviting company, exact scope/role, expiry, Casdoor sign-in guidance, support path |
+| `/accept-invite` | New-user setup or existing-user employee acceptance | Inviting company, employee status, groups, expiry, Casdoor sign-in guidance, support path |
 | `/forgot-password` | Optional legacy-only recovery, when explicitly enabled | One identifier field and non-enumerating result; new external users are directed to Casdoor recovery |
 | `/reset-password` | Optional legacy-only recovery completion | New password, confirmation, expiry/error state, no account metadata beyond what is needed |
 | `/qualification` | Submit business qualification for the current evaluation organisation | Business/workload fields, review and retention expectation, no dedicated-capacity or contract promise |
@@ -489,14 +509,19 @@ request/correlation ID for support-safe failures.
 
 ### Authenticated Access workspace
 
-The existing Access view gains two separate sections:
+The Access workspace gains four separate normal-link sections:
 
-- **People:** active members, role, project/environment scope, invitation
-  status, last sign-in when authorised, and invite/revoke actions.
+- **People:** one protected owner row, employees, group membership, derived
+  model endpoints, pending invitations, safe last sign-in, and owner-only
+  invite/resend/revoke/disable/reactivate actions.
+- **Groups:** owner-managed people membership and group-to-model endpoint
+  grants; employees see only their own groups and effective endpoints.
+- **Your agent sessions:** the signed-in person's short-lived interactive
+  connections and revoke/logout actions.
 - **Application access:** the current service-account and one-time API-key
   management UI.
 
-The separation must be visible in navigation and copy. Use “Invite a person”
+The separation must be visible in navigation and copy. Use “Invite an employee”
 and “Create application key”; never use the ambiguous label “Create
 credentials” for both.
 
@@ -508,7 +533,8 @@ deployment-request views distinguish `Available to configure`, `Quoted`,
 ### Email and link copy
 
 - Subject and first line identify Alzette and the inviting organisation.
-- Invitation mail states the exact role/scope, expiry, and who initiated it.
+- Invitation mail states employee access, initial groups, expiry, and who
+  initiated it. A model summary appears only from safe current evidence.
 - Recovery mail never includes account scope, customer consumption, provider,
   model, target, or application-key information.
 - Emails contain no prompt/output content and no tracking pixel.
@@ -524,13 +550,13 @@ deployment-request views distinguish `Available to configure`, `Quoted`,
 | ID | Requirement | Acceptance |
 |---|---|---|
 | ONB-P0-001 | A visitor can submit and verify a business-email signup without enumeration | New/existing/blocked responses are neutral; verification tokens are random, expiring, single-use, and digest-only |
-| ONB-P0-002 | Verified setup atomically creates one human, evaluation organisation, development scope, and exact membership | Failure or replay creates no partial/duplicate tenant resources or additional allowance |
+| ONB-P0-002 | Verified setup atomically creates one human, evaluation organisation, singular owner, development scope, and default employee evaluation access group | Failure or replay creates no partial/duplicate tenant, ownership, group, route, or allowance resources; the owner can use the active evaluation model and later assign employees through the group |
 | ONB-P0-003 | Evaluation provisioning uses only the operator-configured shared offer and target | Signup fields cannot alter model slug, target, route address, limits, execution class, plan, or price; missing/unsafe offer fails closed |
 | ONB-P0-004 | Evaluation access is visibly shared and hard-capped | Gateway enforcement survives restart; exhaustion blocks before a provider attempt and the portal shows remaining/final usage honestly |
-| ONB-P0-005 | A verified evaluation admin can connect an interactive agent with short-lived human access or create a separately scoped application key for a workload and make a real first request | Human login/session never authenticates inference directly; the exact actor kind appears once in the logical-request ledger and current organisation usage |
+| ONB-P0-005 | A verified evaluation owner can connect an interactive agent with short-lived human access or create a separately scoped application key for a workload, and make a real first request | Human login/session never authenticates inference directly; owner/all-active-endpoint policy is enforced and the exact actor kind appears once in the logical-request ledger and current organisation usage |
 | ONB-P0-006 | Catalogue browsing and configuration do not claim runtime availability | Catalogue, quote, deployment, target, and route states are rendered separately and contain no fabricated capacity or price |
-| ONB-P0-007 | Operator-created first-admin and teammate invitations remain supported | Exact scope/role acceptance is atomic; replay, expiry, revoke, cross-email, and privilege escalation fail closed |
-| ONB-P0-008 | Authorised admins can list, invite, resend, revoke, and disable within their authority | Two-tenant, role-ceiling, and last-admin tests cover every action |
+| ONB-P0-007 | Operator-created first-owner and owner-created employee invitations remain supported | Owner establishment or exact employee/group acceptance is atomic; replay, expiry, revoke, cross-email, group substitution, and ownership escalation fail closed |
+| ONB-P0-008 | The owner can list, invite, resend, revoke, disable/reactivate employees, and manage groups | Two-tenant, group-policy, exactly-one-owner, transfer/recovery, and concurrent-change tests cover every action; no role picker exists |
 | ONB-P0-009 | New external users use Casdoor recovery while remaining local users retain a bounded, explicitly legacy recovery path | Neither path accepts or issues an inference credential; applicable Alzette sessions are revoked or revalidated after identity recovery |
 | ONB-P0-010 | Login, signup, verification, invitation, identity callback, and any enabled legacy-recovery paths are restart-safe throttled | Account, source, organisation-name, and free-allocation abuse is bounded across control-process restart |
 | ONB-P0-011 | Setup and portal sessions are separate and rotated after authentication or privilege change | URL token is removed before form entry; session-fixation and scanner-GET tests pass |
@@ -543,12 +569,12 @@ deployment-request views distinguish `Available to configure`, `Quoted`,
 
 | ID | Requirement | Acceptance |
 |---|---|---|
-| ONB-P1-001 | An evaluation admin can submit business qualification and dedicated deployment intent for their own organisation | Submission grants no new runtime authority; operator review records evidence and cannot target another organisation |
+| ONB-P1-001 | The evaluation owner can submit business qualification and dedicated deployment intent for their own organisation | Submission grants no new runtime authority; operator review records evidence and cannot target another organisation |
 | ONB-P1-002 | Approval promotes the existing organisation lifecycle without duplicating identity, usage, or resources | Tenant ID remains stable; approved/customer states still do not imply a ready deployment |
-| ONB-P1-003 | A versioned price/capacity quote requires explicit authorised acceptance | Expired/superseded/cross-tenant quotes fail; acceptance never directly creates a target, binding, charge, or readiness state |
+| ONB-P1-003 | A versioned price/capacity quote requires explicit current-owner acceptance | Expired/superseded/cross-tenant quotes fail; acceptance never directly creates a target, binding, charge, or readiness state |
 | ONB-P1-004 | Transactional mail delivery is retryable and observable without storing plaintext action tokens | Delivery survives worker restart; uncertain retries rotate credentials safely; customer-safe status is visible |
 | ONB-P1-005 | Applicant can withdraw and unneeded signup/qualification PII expires under policy | Retention worker and deletion tests preserve only required audit/legal records and never delete usage belonging to an active organisation |
-| ONB-P1-006 | Local-account MFA or the first customer's OIDC/SAML method gates production access and quote acceptance | Authentication, recovery, step-up, role mapping, and deprovisioning are tested end to end |
+| ONB-P1-006 | Local-account MFA or the first customer's OIDC/SAML method gates production access and quote acceptance | Authentication, recovery, step-up, identity/group synchronization, and deprovisioning are tested end to end without deriving ownership from identity-provider claims |
 
 ## 10. Technical architecture
 
@@ -629,8 +655,11 @@ mailer, throttle, gateway-limit, and operator-configuration gates are complete.
 Repository reality now controls the numbering: `0008` has already supplied
 email/self-service/catalogue groundwork but did not create invitation tables or
 make federated password-less users possible. The invitation, federated
-identity, human-agent grant/token, and request-actor changes are planned in the
-next additive migration after `0010`, as defined by
+identity, human-agent grant/token, and request-actor changes are planned in an
+additive series beginning after the current `0011_endpoint_team_size`:
+`0012_company_people_groups`, `0013_workforce_identity_invitations`, and
+`0014_human_agent_access`, subject to confirming the next unused numbers when
+implementation starts, as defined by
 [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md). The detailed
 `human_invitations` and action-session shapes below remain requirements for
 that future migration; they are not evidence that `0008` implemented them.
@@ -691,20 +720,43 @@ qualification, quote, deployment request, deployment, and capacity-revision
 tables specified in `PORTAL_PRD.md`. These are intent and commercial records;
 the existing inference target and tenant route remain runtime truth.
 
+#### New company authority and access-group tables
+
+The additive workforce migration introduces:
+
+- `organisation_people`, the enabled human-to-company relationship without a
+  selectable role;
+- append-only `organisation_ownerships`, with one current row per active
+  organisation and atomic transfer/recovery evidence;
+- `access_groups`, company-owned enabled/disabled access sets with an internal
+  server-owned project/environment scope;
+- `access_group_people`, same-company person membership; and
+- `access_group_models`, same-company group-to-endpoint/model-alias grants.
+
+Partial uniqueness permits at most one current owner; the creation,
+transfer/recovery, restore, and close transactions enforce exactly one at
+commit for every active/evaluation/customer organisation. Normal invitations
+create employees only. The current owner cannot be disabled or removed outside
+an atomic transfer/recovery transaction. Composite foreign keys reject
+cross-company group membership and model grants. Group disable/removal and
+employee disable invalidate affected human-agent access on the next request
+without changing application service accounts.
+
 #### New `human_invitations`
 
 Minimum fields:
 
 - stable ID and status;
 - normalized recipient email and optional intended display name;
-- organisation, project, environment, and role with composite scope foreign
-  keys;
+- organisation and employee relationship with composite tenant foreign keys;
+- immutable initial group snapshot rows in `human_invitation_groups`, each
+  revalidated as enabled and same-company at acceptance;
 - SHA-256 token digest, token generation number, creation and expiry times;
 - inviter type/ID, accepted user ID, accepted/revoked times, and safe reason;
 - delivery mode/status and idempotency key.
 
 A partial unique index allows at most one active invitation for an
-email/scope/role tuple. Resend increments the generation and replaces the token
+email/organisation tuple. Resend increments the generation and replaces the token
 digest. Database checks make `accepted`, `revoked`, and `expired` mutually
 exclusive terminal states.
 
@@ -821,15 +873,23 @@ remain disabled unless the separately approved compatibility path in section
 Authenticated portal APIs:
 
 ```text
-GET  /api/portal/members
+GET  /api/portal/people
 GET  /api/portal/account-stage
 GET  /api/portal/evaluation-allowance
 GET  /api/portal/invitations
 POST /api/portal/invitations
 POST /api/portal/invitations/resend
 POST /api/portal/invitations/revoke
-POST /api/portal/memberships/role
-POST /api/portal/memberships/disable
+POST /api/portal/employees/disable
+POST /api/portal/employees/reactivate
+GET  /api/portal/access-groups
+POST /api/portal/access-groups
+POST /api/portal/access-groups/{id}/disable
+PUT  /api/portal/access-groups/{id}/people/{person-id}
+DELETE /api/portal/access-groups/{id}/people/{person-id}
+PUT  /api/portal/access-groups/{id}/models/{endpoint-id}
+DELETE /api/portal/access-groups/{id}/models/{endpoint-id}
+POST /api/portal/ownership/transfer
 POST /api/portal/qualification
 ```
 
@@ -851,8 +911,9 @@ alzette qualification expire            # P1
 All mutations are bounded, reject unknown fields, use CSRF protection when
 cookie-authenticated, carry a correlation ID, and are idempotent or reject a
 replayed state transition deterministically. Customer-supplied organisation
-IDs never establish authority; the server resolves scope from the current
-membership and checks any selected project/environment against it.
+IDs never establish authority; the server resolves the company from the
+current portal session and verifies every selected group or endpoint against
+that company.
 
 The bearer-only `/api/v1/*` machine APIs and inference gateway contracts do not
 gain signup or human-session authentication.
@@ -870,7 +931,7 @@ type Mailer interface {
 Implement two modes first:
 
 - `manual`: return a plaintext action URL once to the authorised operator or
-  inviting admin. This is sufficient for the closed PoC and deterministic
+  inviting owner. This is sufficient for the closed PoC and deterministic
   tests.
 - `transactional`: the worker sends through one reviewed HTTPS API or SMTP
   adapter. Secrets are file-backed, redirects are disabled, destinations are
@@ -944,7 +1005,7 @@ enforcement source for this one-machine design.
 - External use requires reviewed TLS ingress, HSTS, Secure/HttpOnly/SameSite
   cookies, no mixed content, and no action credential in local/session storage.
 - All unauthenticated account/recovery responses are generic and have
-  comparable practical timing. Authenticated administrators may receive
+  comparable practical timing. The authenticated owner may receive
   explicit duplicate-member/invite results inside their authorised tenant.
 - URL credentials are never logged. On first valid GET they are exchanged for
   a setup cookie and removed through a redirect; `Referrer-Policy: no-referrer`,
@@ -969,7 +1030,7 @@ enforcement source for this one-machine design.
   action tokens, password material, full session values, or message bodies.
 - Data-subject deletion/withdrawal respects contracted audit/legal retention
   and records what was deleted versus retained and why.
-- Password reset, email change, MFA change, and first-admin transfer are
+- Password reset, email change, MFA change, and ownership transfer/recovery are
   high-risk actions requiring fresh authentication once those settings exist.
 
 ## 13. Observability
@@ -985,7 +1046,7 @@ Metrics and safe structured events must cover:
 - acceptance and reset failure classes without token or account disclosure;
 - login/recovery throttles and suspected enumeration bursts;
 - mail queue depth, oldest age, lease recovery, attempts, and permanent failure;
-- membership/role changes and last-admin protection failures;
+- employee/group changes and ownership transfer/recovery failures;
 - time from signup verification to portal entry and first successful gateway
   request, plus invitation-to-acceptance time.
 
@@ -1004,7 +1065,8 @@ operator-only.
 - random token length, digest-only representation, expiry, generation rotation,
   replay, and constant-time comparison;
 - every allowed and forbidden state transition;
-- role ceiling, last-admin, and existing-user acceptance policy;
+- exactly-one-owner, transfer/recovery, group policy, rejected role input, and
+  existing-user acceptance policy;
 - safe mail templates and absence of forbidden fields.
 
 ### PostgreSQL integration tests
@@ -1039,7 +1101,8 @@ operator-only.
 
 ### Isolation and release tests
 
-- two organisations, multiple projects/environments, every role, guessed IDs,
+- two organisations, multiple internal projects/environments, owner/employee,
+  zero/multiple groups, guessed IDs,
   reused invitation IDs, and cross-email attempts;
 - a portal user cannot select a target/raw machine/provider and cannot obtain an
   application key without the existing access-management permission;
@@ -1077,15 +1140,17 @@ evaluation tenant, connects through short human access or creates a separate
 workload key, completes one real capped shared call, and sees its usage;
 duplicate or abusive signup cannot create more free capacity.
 
-### Increment B — delegated team onboarding
+### Increment B — owner-managed People and Groups
 
-- People section in Access;
-- member/invitation APIs;
-- role ceiling, last-admin, resend/revoke, existing-user acceptance;
+- People and Groups sections in Access;
+- employee/group/invitation APIs and group-filtered model discovery;
+- exactly-one-owner transfer/recovery, resend/revoke, employee disable/reactivate,
+  and existing-user acceptance with no role picker;
 - fake mailer and optional transactional adapter/outbox.
 
-**Exit:** the customer admin can onboard and remove a teammate without Alzette
-handling the teammate's password and without crossing project/tenant scope.
+**Exit:** the owner can onboard and remove an employee, manage group model
+access, and transfer ownership without Alzette handling employee passwords,
+creating a second/zero owner, or crossing company scope.
 
 ### Increment C — qualification and dedicated-endpoint configuration
 
@@ -1102,8 +1167,9 @@ capacity expansion preserves the endpoint contract.
 ### Increment D — enterprise authentication
 
 - first contracted customer's MFA or OIDC/SAML requirement;
-- identity-subject linking, role mapping, recovery, deprovisioning, and access
-  review;
+- identity-subject linking, directory-to-Alzette-group synchronization,
+  recovery, deprovisioning, and access review; external claims never create
+  ownership;
 - SCIM/JIT only if required.
 
 **Exit:** the signed customer's identity lifecycle and production access policy
@@ -1165,9 +1231,9 @@ separate from proving a MeluXina model target or dedicated capacity.
 | Default shared evaluation model, hard allowance, rate/concurrency limits, lifetime, and cost owner | Founder/platform/finance | Increment A |
 | Privacy/acceptable-use versions, prospect fields, and retention | Founder/legal | Increment A |
 | Which dedicated model/profile capacity metrics and prices have enough evidence to publish or quote | Founder/operator/finance | Increment C |
-| Who may approve a first administrator and what business evidence is recorded | Founder/operator | Increment A |
+| Who may approve or recover a first owner and what business evidence is recorded | Founder/operator | Increment A |
 | Whether the first signed client requires local MFA, OIDC, or SAML | Customer/founder/security | Production gate |
-| Email-change and first-admin transfer support process | Operator/security | Increment B |
+| Email-change and ownership transfer/recovery approvers and evidence | Operator/security | Increment B |
 | Exact throttle thresholds and alert route after load/abuse testing | Security/operator | Internet gate |
 
 None of these decisions blocks the additive schema and deterministic migration
@@ -1185,8 +1251,9 @@ This PRD is implemented for self-service evaluation P0 when:
   creates a separate application key for a workload, and a real first call
   appears under the exact actor kind in the truthful usage ledger;
 - a new and an existing user can accept an exact invitation safely;
-- a customer admin can manage people separately from application credentials;
-- recovery, resend, revoke, expiry, disablement, and last-admin protection work;
+- the owner can manage employees/groups separately from application credentials;
+- recovery, resend, revoke, expiry, employee disablement, group access removal,
+  exactly-one-owner protection, and atomic ownership transfer work;
 - plaintext action credentials exist only in the browser/email/manual one-time
   response for the minimum required lifetime;
 - tenant and privilege boundaries pass database, API, and browser adversarial

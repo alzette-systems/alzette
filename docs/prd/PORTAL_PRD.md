@@ -21,7 +21,9 @@ implementation unless this PRD explicitly says otherwise.
 Casdoor-backed invited-employee identity, short-lived human-agent inference
 tokens, per-employee attribution, and the local compatibility proxy. It
 supersedes permanent personal API keys and new external Alzette-local passwords
-as the target employee workflow; none of it is current Slice 2 evidence.
+as the target employee workflow. The bounded invitation, pinned local Casdoor,
+context discovery, human-token, gateway, and attribution slice is current local
+evidence; the compatibility proxy and production identity controls are not.
 
 **Current provider research brief:**
 [`research/LUXPROVIDE_STARTUP_ACCESS.md`](../../research/LUXPROVIDE_STARTUP_ACCESS.md)
@@ -54,6 +56,20 @@ The numbered slices are end-to-end risk/evidence increments, not UI tiers or sep
 
 Several competitor-matrix and appendix “current repository” cells below preserve the earlier fixture-era audit that informed the build. They are historical research provenance and are superseded as implementation evidence by this checkpoint, `POC_BOUNDARY.md`, `README.md`, and `QA_REPORT.md`; their product recommendations remain useful unless explicitly changed.
 
+## 2026-08-18 workforce implementation checkpoint
+
+The local Compose stack now includes digest-pinned Casdoor and deterministic
+bootstrap. The one company owner manages People, Groups, group-to-model access,
+manual exact-email invitations, and Application access. Employees have no
+customer-visible role picker and receive model access only through enabled
+Alzette groups. Scanner-safe invitation setup, OIDC Authorization Code plus
+PKCE, exact verified-email acceptance, group-filtered agent contexts,
+maximum-ten-minute digest-only `alz_u_` credentials, strict gateway dispatch,
+revocation, and human request attribution are implemented and covered by a
+real local browser/API/inference journey. Transactional mail, public signup,
+ownership transfer/recovery, protected refresh storage, the local agent/proxy,
+remote TLS, and production identity/offboarding evidence remain gated.
+
 ## 2026-08-14 self-service account and endpoint decision
 
 The approved product direction is hybrid self-service B2B. A person verifies a
@@ -75,25 +91,26 @@ additional hardware-backed units behind the same endpoint.
 
 The exact identity lifecycle, security, delivery, and rollout contract is in
 [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md). The current repository
-still provisions humans through `alzette user provision`; it has no signup,
-email verification, automatic evaluation-organisation provisioning,
-invitation, recovery, member-management, or transactional-email workflow.
-Those identity controls form a dedicated post-Slice-2 increment and part of the
-Slice 3 remote-pilot gate.
+still provisions the first owner through operator reconciliation and has no
+public signup, automatic evaluation-organisation provisioning, password
+recovery, or transactional-email workflow. It does have owner-managed
+employee/group membership, manual invitations, and exact OIDC acceptance. The
+remaining identity controls form part of the Slice 3 remote-pilot gate.
 
 ## 2026-08-15 workforce agent access decision
 
-Interactive employee access is now a separate identity path from workload
-access. An authorised employer invites an exact person into an exact
-organisation/project/environment role. The employee authenticates through a
-self-hosted Casdoor instance and uses an automatically issued, ten-minute,
-membership-bound Alzette `alz_u_` token; they do not receive a permanent
-personal API key. Applications, CI, and unattended automation continue to use
-service accounts and `alz_k_` keys.
+Interactive employee access is a separate identity path from workload access.
+The one company owner invites an exact person as an employee and optionally
+assigns initial Alzette access groups. Employees have no selectable role or
+direct model exception. They authenticate through self-hosted Casdoor and use
+a ten-minute, membership/alias-bound Alzette `alz_u_` token; they do not receive
+a permanent personal API key. Applications, CI, and unattended automation
+continue to use service accounts and `alz_k_` keys.
 
 Casdoor proves identity but never chooses an Alzette tenant, model, endpoint, or
 route. Alzette owns invitation acceptance, `(issuer, subject)` identity links,
-membership, role, aliases, token mint/revoke, routing, usage, and audit. The
+company ownership, employee/group membership, aliases, token mint/revoke,
+routing, usage, and audit. The
 gateway accepts short Alzette tokens through a distinct path and never accepts
 Casdoor JWTs directly. A separate Go `alzette-agent` process supplies a
 loopback-only, process-lifetime compatibility key to agents that require an
@@ -103,11 +120,11 @@ credential may survive process restart, under the protected local-store
 contract in the workforce PRD.
 
 The first implementation remains one-machine Docker Compose: one pinned
-Casdoor replica, existing Alzette processes, and one PostgreSQL server with
-separate least-privilege Alzette/Casdoor databases. Redis is not introduced for
-the single-replica P0. Canonical TLS ingress, transactional mail, the Casdoor
-acceptance spike, a named client/OS, and independent security review gate any
-external pilot. [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md)
+Casdoor replica, existing Alzette processes, Alzette PostgreSQL, and a separate
+local Casdoor data volume. Redis is not introduced for the single-replica P0.
+Canonical TLS ingress, transactional mail, the complete Casdoor lifecycle
+matrix, a named client/OS, and independent security review gate any external
+pilot. [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md)
 is the controlling technical, UX, security, test, and rollout contract.
 
 ## 2026-08-14 endpoint-acquisition implementation checkpoint
@@ -1122,8 +1139,8 @@ unavailable.
 | P0-FR-016 | Consequential access, credential, project, route, target-binding, limit, and export actions MUST be audited. | Events contain actor/scope/action/result/correlation ID and safe before/after identifiers, excluding secrets and prompt/output content. |
 | P0-FR-017 | Product data MUST be labelled live, stale, partial, estimated, final, contractual, operator-entered, or illustrative where applicable. | No unsupported `MeluXina`, `on-premise`, `Luxembourg-hosted`, `dedicated`, `operational`, SLA, or certification claim renders without an authoritative source. |
 | P0-FR-018 | The whole P0 system MUST run on one machine under Docker Compose. | Gateway, control/portal, worker if used, PostgreSQL, ingress, and telemetry start from versioned configuration; no Kubernetes, Kafka, Redis, or separate analytics database is required. |
-| P0-FR-019 | The first administrator of an approved organisation MUST accept a scoped, expiring invitation and authenticate through the selected human identity layer. | Alzette provisions no normal customer password; Casdoor authentication plus deliberate acceptance creates the exact identity link/user/membership atomically; replay, expiry, revoke, wrong identity, and cross-scope tests fail closed. |
-| P0-FR-020 | Authorised customer administrators MUST be able to invite, inspect, resend, and revoke teammate invitations within a server-enforced role ceiling. | Organisation and project authority is derived from the session; project admins cannot grant organisation/peer-admin access; two-tenant tests cover every mutation. |
+| P0-FR-019 | The first owner of an approved organisation MUST accept a scoped, expiring owner-establishment invitation and authenticate through the selected human identity layer. | Alzette provisions no normal customer password; Casdoor authentication plus deliberate acceptance creates the exact identity/user/company link and singular ownership atomically; replay, expiry, revoke, wrong identity, and cross-company tests fail closed. |
+| P0-FR-020 | The current company owner MUST be able to invite, inspect, resend, and revoke employee invitations. | Company authority is derived from singular current ownership; ordinary invitations create employees only, accept optional same-company initial groups, expose no role field, and are covered by two-company mutation tests. |
 | P0-FR-021 | Human account recovery MUST remain distinct from inference credentials. | Casdoor owns recovery for new external identities; bounded legacy-account recovery changes only the human authentication method, revokes applicable portal sessions, and never issues or accepts an inference credential. |
 | P0-FR-022 | A verified business-email user MUST be able to create one isolated evaluation organisation without payment or operator-issued credentials. | Atomic/replayed signup creates exactly one evaluation tenant and membership; email/domain does not grant access to an existing company. |
 | P0-FR-023 | Evaluation provisioning MUST bind only the enabled server-owned shared offer and enforce hard lifetime/rate/concurrency/allowance limits. | Browser fields cannot change model, target, plan, limits, or execution class; exhaustion blocks before provider attempt and duplicate signup creates no extra allowance. |
@@ -1131,7 +1148,7 @@ unavailable.
 | P0-FR-025 | The portal MUST expose a curated catalogue whose model, version, profile, metric, price, eligibility, quote, deployment, and route states remain distinct. | A listing or price never renders as available/contractual/ready without the corresponding evidence; unsupported IDs fail closed. |
 | P0-FR-026 | A customer MUST configure dedicated endpoint intent by model, workload, deployment profile, and capacity units rather than raw infrastructure. | Customer input cannot select target URL, host, image, provider slug, or secret; profiles declare accelerator count, capacity evidence/finality, min/max units, and price availability. |
 | P0-FR-027 | Versioned dedicated endpoint quotes MUST snapshot price and capacity before acceptance. | Cross-tenant/expired/superseded quotes fail; acceptance is reauthenticated, immutable, and does not itself claim payment, allocation, deployment, or readiness. |
-| P0-FR-028 | An authorised employer MUST be able to invite an exact employee into an exact organisation/project/environment role. | Casdoor authenticates the person, but only atomic Alzette invitation acceptance creates membership; domain/IdP claims, GET, replay, wrong identity, expiry, revoke, and role elevation grant nothing. |
+| P0-FR-028 | The company owner MUST be able to invite an exact employee into the company with zero or more exact initial Alzette access groups. | Casdoor authenticates the person, but only atomic Alzette invitation acceptance creates employee and group membership; domain/IdP claims, GET, replay, wrong identity, expiry, revoke, cross-company groups, and ownership fields grant nothing. |
 | P0-FR-029 | An interactive employee MUST authenticate inference without receiving a permanent personal API key. | Alzette mints a digest-only, maximum-ten-minute `alz_u_` token bound to one active membership and alias set; Casdoor tokens and portal sessions are rejected by the gateway. |
 | P0-FR-030 | A key-only compatible agent MUST be usable through a local Alzette proxy. | The separate Go client binds loopback only, uses a process-lifetime local key, keeps access and `alz_u_` tokens in memory, preserves the supported streaming/tool contract, and never forwards or persists the local key. |
 | P0-FR-031 | Human-agent and service-account consumption MUST reconcile without conflating actors. | The immutable ledger enforces exactly one actor tuple, totals match, authorised per-employee metadata is tenant-safe, and no prompt/output or productivity score is stored. |
@@ -1677,8 +1694,10 @@ retention configuration, and runbooks. Complete verified signup, transactional
 mail, atomic evaluation-tenant provisioning, recovery, invitation/member
 management, and abuse/cost controls from
 [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md). Complete the bounded
-Casdoor acceptance spike, federated identity links, short human-agent tokens,
-actor-safe accounting, and first loopback proxy path from
+Casdoor acceptance matrix, durable protected refresh storage, federated
+identity lifecycle, short human-agent token hardening, actor-safe accounting,
+and broader named-client/OS evidence beyond the implemented memory-only Pi
+loopback path from
 [`WORKFORCE_AGENT_ACCESS_PRD.md`](WORKFORCE_AGENT_ACCESS_PRD.md). Publish only a
 curated catalogue/profile whose evidence owner exists.
 

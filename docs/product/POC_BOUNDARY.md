@@ -1,12 +1,15 @@
 # Alzette OpenRouter PoC boundary
 
-**Status:** Slice 0–2 and endpoint-control-plane offline software proof passed; live provider/Stripe evidence and Slice 3 production controls pending
+**Status:** Slice 0–2, endpoint control, and the local invited-employee OAuth/human-credential vertical slice passed; mail, remote TLS, live Stripe, and Slice 3 production controls pending
 
-**Date:** 2026-08-14
+**Date:** 2026-08-18
 
-**Future identity contract:** [`WORKFORCE_AGENT_ACCESS_PRD.md`](../prd/WORKFORCE_AGENT_ACCESS_PRD.md)
+**Workforce identity contract:** [`WORKFORCE_AGENT_ACCESS_PRD.md`](../prd/WORKFORCE_AGENT_ACCESS_PRD.md)
 defines invited-employee OAuth, short-lived human-agent tokens, and a local
-compatibility proxy. Those capabilities are not current PoC evidence.
+compatibility proxy. Invitations, pinned local Casdoor, group-filtered context
+discovery, `alz_u_` mint/revoke, strict gateway use, and human ledger
+attribution are current local PoC evidence; the proxy and remote-pilot controls
+are not.
 
 ## Outcome
 
@@ -54,6 +57,17 @@ This PoC validates the Alzette software boundary and makes the product concept d
 - Reconciled hourly logical-request rollups and per-scope worker checkpoints.
 - Metadata-only compatible probes, disabled globally and per-target by default.
 - A minimal operator surface or command/API that provisions the tenant, target, route, model alias, and key without a database edit.
+- One explicit company owner, employees, owner-managed access groups, and
+  group-to-model assignments in the Access workspace.
+- Exact-email employee invitations with manual one-time-link delivery,
+  resend/revoke, scanner-safe setup, and atomic OIDC acceptance.
+- Digest-pinned loopback Casdoor with deterministic bootstrap and OAuth
+  Authorization Code plus PKCE.
+- Bearer-only employee context discovery and maximum-ten-minute, digest-only,
+  membership/alias-bound `alz_u_` credentials; raw Casdoor tokens never reach
+  the gateway.
+- Exactly-one-actor request attribution for service-account or human requests,
+  plus immediate human credential revocation.
 - Docker Compose deployment on one machine.
 - Deterministic fake-target integration tests plus an opt-in live OpenRouter smoke test.
 
@@ -65,14 +79,14 @@ This PoC validates the Alzette software boundary and makes the product concept d
 - Silent fallback across customer, model, service mode, or execution location.
 - Self-service model deployment, training, fine-tuning, evaluation, or marketplace workflows.
 - Full SSO/SCIM, complex RBAC, Kubernetes, Redis, Kafka, ClickHouse, or multi-host high availability.
-- Invitation acceptance, customer-managed human membership, password recovery,
-  transactional email, or public self-registration. The current human user and
-  membership are operator-provisioned; the target hybrid self-service
-  evaluation/invitation workflow is specified in
+- Password recovery, transactional email, public self-registration, automatic
+  evaluation-company creation, or production identity delivery. The initial
+  owner remains operator-reconciled; the broader hybrid self-service workflow
+  is specified in
   [`ACCOUNT_ONBOARDING_PRD.md`](../prd/ACCOUNT_ONBOARDING_PRD.md).
-- Casdoor, portal OIDC, PKCE/device login, human-agent `alz_u_` tokens, a local
-  credential proxy, native employee-agent login, or per-employee inference
-  attribution. Their separate target contract is
+- Device login, protected rotating-refresh storage, the local credential
+  proxy, native employee-agent client, production Casdoor lifecycle/recovery,
+  or remote employee OAuth. Their completion contract is
   [`WORKFORCE_AGENT_ACCESS_PRD.md`](../prd/WORKFORCE_AGENT_ACCESS_PRD.md).
 - Prompt/output history, prompt analytics, or support access to content.
 - Live Stripe checkout/settlement evidence, scheduled retry/reconciliation of
@@ -95,20 +109,47 @@ OpenRouter target
       ▼
 model response + usage
 
-client browser → human login/session → alzette control/portal → membership-scoped queries → PostgreSQL
+owner browser → human login/session → alzette control/portal → owner-scoped People/Groups/Application access → PostgreSQL
                                       ├→ service accounts / one-time API keys
                                       ├→ route registry / inference evidence
                                       └→ rollup checkpoint / optional probe evidence
+
+employee browser → manual invite link → Casdoor OAuth/PKCE → atomic Alzette membership/group acceptance
+employee client  → alzette-agent browser PKCE → Alzette contexts/mint → short alz_u_ → authenticated loopback proxy → Pi → gateway → human-attributed request
 ```
 
-For the first-client seam, the control service exposes only the login, application workspaces, exact allow-listed assets, and `/api/portal/*`. It does not expose signup, invitation acceptance, or password recovery. A human password creates a server-side session; it is not an Alzette API key. Session and CSRF cookies protect browser mutations. Application inference keys remain one-time-reveal service-account secrets. The unchanged `/api/v1` machine APIs are Bearer-only and separate. The PoC listener is HTTP; remote use requires TLS, while the explicitly requested trusted-LAN demo uses a visible insecure-transport warning and non-secure cookies. Legacy dashboard and source paths are not served. The rewritten public landing page and documentation run under `alzette public` from a different static root and are not reachable through the authenticated control service.
+For the first-client seam, the control service exposes login, application
+workspaces, exact allow-listed assets, owner-managed invitation acceptance,
+`/api/portal/*`, and the bearer-only `/api/agent/*` identity-broker routes. It
+does not expose public signup or password recovery. A human password creates a
+server-side session; it is not an Alzette API key. Session and CSRF cookies
+protect browser mutations. Application inference keys remain one-time-reveal
+service-account secrets. Casdoor tokens authenticate only the agent identity
+API; `/api/v1` machine APIs remain separate, and the gateway accepts only
+strict `alz_k_` or `alz_u_` credentials. The PoC listener is HTTP; remote use
+requires TLS, while the explicitly requested trusted-LAN demo uses a visible
+insecure-transport warning and non-secure cookies. Legacy dashboard and source
+paths are not served. The rewritten public landing page and documentation run
+under `alzette public` from a different static root and are not reachable
+through the authenticated control service.
+
+The local Linux demo now includes a memory-only `alzette-agent` process and
+verified Pi 0.84.2, Jan Desktop 0.8.4, and Goose Desktop 1.46.0 paths. The
+helper retains OAuth and `alz_u_` material, gives each client only a random
+process-scoped loopback capability, serves only the employee's selected model
+list and bounded Chat Completions route, remints the short credential when
+required, and revokes the grant when the client fully exits. This is not
+durable login, automatic native-client configuration, broad client/version
+support, or a signed remote-pilot desktop artifact.
 
 Migration `0008_self_service_catalogue` supplies the catalogue/deployment base.
 Migration `0009_endpoint_billing_control_plane` supplies the runnable customer
 configuration, endpoint, payment, Stripe-mapping, and webhook ledgers. The
 additive `0010_capacity_request_intent` migration preserves immutable bounded
 workload-sizing intent and hashed retry identity for deployment/capacity
-requests. The control process exposes these only through a human membership/session and
+requests. Migrations `0012`–`0014` add explicit company ownership/groups,
+digest-only invitation/federated identity state, and short human inference
+grants/tokens with an actor-XOR request ledger. The control process exposes these only through a human membership/session and
 server-derived tenant scope; the billing process exposes only its signed
 webhook endpoint. These migrations do not enable public signup, publish an
 offer, configure Stripe, allocate a machine, or change a route on their own.

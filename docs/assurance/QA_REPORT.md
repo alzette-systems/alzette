@@ -1,5 +1,120 @@
 # Alzette OpenRouter PoC QA report
 
+## Local workforce OAuth and human inference verification — 2026-08-18
+
+### Verdict
+
+The bounded local employee-access vertical slice is **PASS**. In the shared
+Compose deployment, a manual exact-email invitation was opened in visible
+Chromium, cleaned from browser history before disclosure, continued through
+the digest-pinned Casdoor login, and atomically created the exact employee and
+initial Finance-group membership. The employee then used public Authorization
+Code plus PKCE without a client secret, discovered only `alzette-chat`, minted
+a maximum-ten-minute `alz_u_` credential, completed one real inference request,
+revoked the grant, and received `401` on the next gateway request. The gateway
+also returned `401` for the raw Casdoor OAuth token. No reusable token was
+printed or retained in a browser artifact.
+
+The first named client path is also **PASS for the local memory-only demo**.
+`alzette-agent pi` opened the real Casdoor authorization page in visible
+Chromium, resolved the employee's single `Alzette Demo · Inference Pilot / PoC`
+context and `alzette-chat` alias, minted the short human credential, started an
+isolated Pi 0.84.2 provider through an authenticated ephemeral loopback proxy,
+and completed a streaming request whose exact response was
+`ALZETTE PI EMPLOYEE OK`. The latest request ledger row had a human actor and
+no service-account actor; after Pi exited there were zero unrevoked unexpired
+human-agent tokens.
+
+Two packaged desktop paths are now also **PASS for the same bounded local
+demo**. Jan Desktop 0.8.4 discovered `alzette-chat` through `/v1/models` and
+returned `ALZETTE JAN DESKTOP OK`; its default `top_k` and `repeat_penalty`
+fields are removed only by the local compatibility proxy, while the gateway's
+strict request contract remains unchanged. Goose Desktop 1.46.0 created an
+OpenAI-compatible Alzette provider and returned
+`ALZETTE GOOSE DESKTOP OK`. Both runs used visible browser PKCE login and the
+same group-filtered employee context. Fully quitting each client revoked its
+grant; the final database check found zero unrevoked, unexpired human-agent
+tokens. The screenshots inspected were `/tmp/jan-chat-pass-2.png` and
+`/tmp/goose-chat-result-1.png`.
+
+This is local loopback evidence, not a production identity or remote-pilot
+approval. Manual one-time-link delivery is implemented; transactional mail,
+canonical TLS, a protected durable refresh-token store, signed cross-platform
+client packaging, ownership transfer/recovery, the complete Casdoor lifecycle
+matrix, and independent production security review remain release gates.
+
+### Checks and results
+
+- **PASS — company authority and invitation:** People, Groups, and owner-only
+  Application access share one server-rendered Access shell. Invitations accept
+  an exact employee email and zero or more initial Alzette groups, expose no
+  role/ownership input, store only a SHA-256 token digest, support
+  resend/revoke, and use scanner-safe GET plus deliberate POST before OIDC.
+- **PASS — OAuth boundary:** Casdoor is pinned by image digest and bootstrapped
+  deterministically. Portal acceptance uses state, nonce, Authorization Code,
+  and PKCE S256. Agent access verifies exact issuer, RS256 signature, audience,
+  expiry, the Casdoor `tokenType=access-token` claim, client, subject, and
+  active introspection state. Public PKCE token exchange passed without a
+  client secret.
+- **PASS — provider caveat recorded:** this pinned Casdoor build returns the
+  same JWT value in both the `access_token` and `id_token` response fields. A
+  distinct non-access token is rejected by deterministic federation tests;
+  Casdoor's identical alias cannot be distinguished by a recipient. The token
+  is accepted only at the agent identity broker and remains rejected by the
+  inference gateway.
+- **PASS — authorization and credentials:** context discovery resolves only the
+  current `(issuer, subject)` identity, enabled company person/membership, and
+  active owner/group route policy. Mint accepts only a subset of those aliases,
+  stores client/idempotency/token digests, returns plaintext once, enforces one
+  active generation and a ten-minute maximum, and makes replayed one-time
+  responses unrecoverable.
+- **PASS — gateway and accounting:** strict prefix dispatch keeps `alz_k_` and
+  `alz_u_` authenticators separate. Gateway authentication intersects the
+  token alias snapshot with current owner/group policy on every request. The
+  completed QA request stored a human user/membership/grant/token tuple and
+  null service-account fields under a database XOR constraint; the token hash
+  is 32 bytes and the revoked credential failed on its next request.
+- **PASS — named Pi demo:** deterministic agent-client tests cover PKCE,
+  context discovery, mint, loopback capability rejection, gateway forwarding,
+  and revoke. The real Pi 0.84.2 run used provider `alzette-employee`, omitted
+  unsupported storage/usage fields, streamed through the gateway, and exposed
+  neither the OAuth credential nor `alz_u_` to Pi, its arguments, or output.
+- **PASS — named Jan and Goose desktop demos:** official release artifacts were
+  checksum-verified before execution. Packaged Jan 0.8.4 and Goose 1.46.0 each
+  accepted only the random one-session loopback key, selected the assigned
+  `alzette-chat` alias, and completed the expected response in the real desktop
+  UI. Jan's known optional sampler fields have a connector regression test;
+  arbitrary unknown request fields still reach the strict gateway and fail.
+  The headless Goose environment lacked a system keychain and retained only
+  the stale loopback session key in its documented permission-`0600`
+  `secrets.yaml` fallback; neither desktop profile contained an `alz_u_` value.
+- **PASS — worker compatibility:** the legacy service-account hourly rollup now
+  explicitly excludes separately attributed human rows instead of scanning a
+  nullable service account and restarting. A PostgreSQL regression covers this
+  boundary, and the shared worker is healthy after processing the live human
+  request.
+- **PASS — automated gates:** `go test ./... -count=1`, `go test -race ./...`,
+  `go vet ./...`, `git diff --check`, and `docker compose config --quiet`
+  passed. The latest complete real-PostgreSQL race package passed in 83.688 seconds,
+  including migration `0014` down/reapply and the invitation/group/human-token
+  vertical slice. All Compose services are healthy on the shared stack.
+- **PASS with existing-design advisories — frontend gate:** visible Chromium
+  exercised the real invitation/Casdoor/People journey. The Impeccable detector
+  was run once over the Access/invitation surfaces; it reported existing
+  design-system ramp/side-rule advisories but no new blocking defect in this
+  workforce slice.
+
+### Remaining release gates
+
+Add transactional mail and sender/scanner evidence; canonical HTTPS and Secure
+cookies; employee disable/reactivate and atomic ownership transfer/recovery;
+full refresh rotation/reuse-family, durable login/logout, key-rotation and backup/restore
+tests; signed cross-platform agent packaging, automatic native-client setup,
+and broader named version/OS coverage; group-mutation race
+coverage; and the named-client/OS plus independent security gate. Human rows
+are currently present in the immutable request ledger but are not yet included
+in the legacy service-account rollup/export views.
+
 ## Endpoint acquisition control-plane verification — 2026-08-14
 
 ### Verdict

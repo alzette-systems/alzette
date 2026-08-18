@@ -2,7 +2,7 @@
 
 **Status:** proposed implementation contract; not yet implemented
 
-**Date:** 2026-08-15
+**Date:** 2026-08-17
 
 **Owners:** product, platform, security, and quality
 
@@ -23,25 +23,30 @@ Alzette-managed local password, this document supersedes that statement.
 Alzette will provide **human agent access** in addition to the existing
 service-account API-key path.
 
-An organisation administrator invites an exact email address into an exact
-organisation/project/environment role. The employee accepts the invitation,
+Every organisation has exactly one current **owner**. Every other human is an
+**employee**. The owner invites an exact email address and assigns the employee
+to one or more owner-managed access groups. Each group grants a set of active
+Alzette model endpoints; there is no invitation role picker and P0 has no
+direct per-employee model exception. The employee accepts the invitation,
 authenticates through Alzette's self-hosted Casdoor identity service, and can
 then connect a supported agent without copying a permanent remote credential.
+The owner can manage and use every active model endpoint in the organisation.
 
 The first implementation uses the following separation:
 
 1. Casdoor authenticates the person through OAuth/OIDC.
-2. Alzette remains authoritative for invitations, users, memberships, roles,
-   model entitlement, tenant routing, usage, and revocation.
+2. Alzette remains authoritative for invitations, users, ownership, employee
+   status, groups, model entitlement, tenant routing, usage, and revocation.
 3. A valid Casdoor identity alone grants no Alzette access.
-4. The employee login is durable across client restarts through a rotating
+4. The person login is durable across client restarts through a rotating
    Casdoor refresh session. Casdoor access tokens remain short-lived and
    memory-only; the refresh credential is stored under the explicit protected
    local-storage contract in this document and is never sent to Alzette.
 5. After login or automatic identity refresh, the Alzette control service
    validates the Casdoor access token, resolves an enabled local identity and
-   membership, and returns a random, ten-minute Alzette human-agent token with
-   an `alz_u_` prefix.
+   company relationship, computes the current owner-or-group entitlement, and
+   returns a random, ten-minute Alzette human-agent token with an `alz_u_`
+   prefix.
 6. The inference gateway accepts that short-lived token through a distinct
    authentication path and derives one exact organisation/project/environment
    scope from it.
@@ -67,7 +72,7 @@ scratch.
 The required customer experience is:
 
 ```text
-Employer invite
+Company owner invites employee
       -> employee accepts and signs in
       -> Alzette membership becomes active
       -> employee selects Connect your agent
@@ -78,8 +83,8 @@ Employer invite
 ```
 
 An invited employee must be able to reach a first authenticated inference call
-without asking an administrator to create, reveal, copy, rotate, or recover a
-personal API key. The administrator must be able to identify the human actor's
+without asking the owner to create, reveal, copy, rotate, or recover a personal
+API key. The owner must be able to identify the human actor's
 metadata-only consumption and revoke that person's access without disrupting
 separately owned production service accounts.
 
@@ -116,28 +121,45 @@ The current repository already provides:
   buffered and SSE responses;
 - one immutable logical request separated from internal provider attempts;
 - tenant-safe usage, request, route, and portal APIs;
-- email and self-service registration schema groundwork in migration `0008`,
-  but no invitation tables or runnable public-account workflow;
-- one-machine Docker Compose with PostgreSQL, gateway, control, public, worker,
-  migration, and optional billing processes.
+- exact owner/employee/group authority plus group model grants in migration
+  `0012`;
+- digest-only exact-email invitations, setup sessions, federated identities,
+  OIDC transactions, manual delivery, resend/revoke, and atomic acceptance in
+  migration `0013` and the portal/workforce services;
+- digest-pinned local Casdoor with deterministic organisation/application/demo
+  bootstrap, Authorization Code plus PKCE, strict issuer/audience/RS256 checks,
+  access-token introspection, and a real browser invitation acceptance path;
+- group-filtered agent contexts, digest-only human-agent grants and maximum
+  ten-minute `alz_u_` credentials in migration `0014`;
+- strict `alz_k_`/`alz_u_` gateway dispatch, current group-policy rechecks,
+  revocation, and service-or-human request-ledger actor constraints;
+- a separate `alzette-agent` Go helper with browser Authorization Code plus
+  PKCE, safe context selection, in-process OAuth refresh, automatic short-token
+  remint, an authenticated ephemeral loopback proxy, grant revocation on exit,
+  an isolated Pi 0.84.2 provider adapter, and verified local Linux Jan Desktop
+  0.8.4 and Goose Desktop 1.46.0 custom-provider paths;
+- one-machine Docker Compose with PostgreSQL, Casdoor, gateway, control,
+  public, worker, migration, and optional billing processes.
 
 The current repository does **not** provide:
 
-- a Casdoor service or configured OAuth/OIDC applications;
-- portal OIDC login, identity linking, MFA, or federation;
-- invitation creation, delivery, acceptance, or member management;
+- production email invitation delivery or canonical remote HTTPS evidence;
 - a protected local rotating-refresh credential store or durable agent login;
-- Authorization Code with PKCE or Device Authorization in an Alzette client;
-- human-agent grants or short-lived `alz_u_` tokens;
-- a gateway authenticator or ledger shape for a human agent principal;
-- per-employee inference attribution;
-- per-employee model-access grants or an administrator model-access editor;
-- a local credential proxy or native Alzette agent provider;
+- Device Authorization, a native client-owned OAuth provider, automatic
+  native-client configuration, or broader named version/OS adapters;
+- complete Casdoor refresh-rotation/reuse-family, logout, MFA, signing-key
+  rotation, restart/restore, and operator recovery evidence;
+- complete employee disable/reactivate, ownership transfer/recovery, and
+  group-change transaction-invalidation behavior;
 - TLS ingress suitable for remote employee authentication.
 
-Therefore this PRD is roadmap and acceptance evidence only. Its presence must
-not make the current login, Access page, documentation, or Compose deployment
-claim that employee OAuth is available.
+Therefore the implemented company/group, invitation/OIDC, and human inference
+slices are local loopback evidence only. The current Compose deployment may
+claim its tested pinned-Casdoor invitation, public-PKCE, group-filtered mint,
+real inference, attribution, and revocation behavior. It must not claim
+production email, remote employee OAuth, durable client login, general desktop
+client compatibility, production identity recovery, or pilot readiness until
+those separate gates pass.
 
 The eventual implementation is guarded by a server capability whose default
 is disabled. When disabled—or when the exact Casdoor, canonical HTTPS,
@@ -160,7 +182,11 @@ P0 includes:
 - one self-hosted, pinned Casdoor replica in the single-machine deployment;
 - one confidential portal OIDC client and one public `alzette-agent` OAuth
   client;
-- employer-created, exact-email, exact-scope Alzette invitations;
+- owner-created, exact-email invitations with an exact initial group set;
+- exactly one current organisation owner with explicit atomic transfer and
+  audited operator-assisted recovery;
+- owner-managed access groups, employee group assignment, and default-deny
+  group-to-model grants;
 - Casdoor-backed identity creation/login and Alzette identity linking;
 - browser Authorization Code with PKCE S256;
 - a maximum-one-hour Casdoor access token plus a rotating refresh session with
@@ -190,7 +216,7 @@ P1 includes, only when required by a signed pilot:
 - Device Authorization for SSH or otherwise headless sessions;
 - federation from the customer's OIDC or SAML identity provider into Casdoor;
 - mandatory organisation-specific MFA policy and phishing-resistant methods;
-- SCIM/JIT or group lifecycle integration;
+- SCIM/JIT or external-directory group lifecycle integration;
 - additional signed installers and reviewed auto-update for agreed desktop
   platforms beyond the named P0 artifact;
 - native providers for additional agents that pass credential-storage review;
@@ -226,29 +252,31 @@ P1 includes, only when required by a signed pilot:
 
 | Actor | Can do | Cannot do |
 |---|---|---|
-| Organisation admin | Invite, inspect, resend, revoke, and disable people within the organisation; inspect safe human-agent attribution | Grant outside their role ceiling, see credentials, select a target, or silently take ownership of an employee session |
-| Project admin | Invite a developer/viewer into an administered project/environment and inspect that scope | Grant organisation administration or another tenant's access |
-| Invited employee/developer | Accept their own invitation, authenticate, select an enabled membership, connect an agent, view their own safe usage, revoke their own agent grant | Join by domain, access another membership, mint service credentials without permission, or select infrastructure |
-| Viewer | Sign in and view permitted portal evidence | Mint a human-agent inference token unless the role policy explicitly grants `inference:write` |
+| Company owner | Manage the company, employees, groups, model grants, endpoints, billing, and application access; use all active company model endpoints; transfer ownership explicitly | Create a second current owner, leave the company ownerless, grant a direct employee model exception, see credentials, select a raw target, or silently take ownership of an employee session |
+| Employee | Accept their own invitation, authenticate, discover and use models granted through enabled groups, view their own safe usage, and revoke their own agent session | Invite or manage people/groups, receive direct model exceptions, join by domain, mint service credentials, or select infrastructure |
 | Service account | Run unattended inference with an `alz_k_` key | Sign in, accept invitations, or inherit a human's membership automatically |
 | Casdoor | Authenticate identities, run OAuth flows, apply identity/MFA policy, issue and introspect identity access tokens | Create an Alzette membership, choose a route, or authorize a model |
 | Alzette operator | Configure Casdoor trust, mail, policies, models, routes, and break-glass recovery | Learn a user's password or silently represent the customer in an agent session |
 
-For P0, `org_admin`, `project_admin`, and `developer` may receive
-`inference:write`; `viewer` may not. Scope remains the intersection of role
-policy, active membership, agent grant, and active model aliases. A token scope
-never expands the role or membership that produced it.
+P0 has no generalised customer role system. `org_admin`, `project_admin`,
+`developer`, and `viewer` are legacy implementation values to migrate, not
+customer choices. Model access has two explicit branches:
 
-The current implementation and this initial P0 contract do not yet provide an
-owner-managed model allow-list for each employee. Until that requirement is
-accepted and implemented, a person with `inference:write` may select a subset
-of every active alias available to their project/environment membership. An
-administrator can narrow access by project/environment membership, but cannot
-truthfully claim a direct per-person model policy. The recommended future
-authorization rule is default-deny and computes the intersection of company
-entitlement, active project/environment routes, role permission, and explicit
-employee-or-group model grants. This is tracked as an open product decision in
-section 23.
+```text
+owner = active company entitlement ∩ active company route
+
+employee = active company entitlement
+  ∩ active route in the group's server-owned project/environment scope
+  ∩ enabled employee
+  ∩ enabled group membership
+  ∩ enabled group model grant
+```
+
+Employee group grants form a union only inside that intersection. P0 has no
+direct employee model grant and no deny rule. Removing an employee from a group,
+removing a model from a group, disabling either object, or retiring the route
+must block the next new request and the next token mint. Adding access requires
+fresh discovery/mint; an existing token never silently gains privilege.
 
 ## 6. Credential taxonomy
 
@@ -271,7 +299,7 @@ The product must call these by their exact names. “Password,” “API key,”
 ## 7. System architecture
 
 ```text
-Employer browser
+Company owner browser
     │  portal session
     ▼
 Alzette control ── invitation/outbox ──> email
@@ -281,7 +309,7 @@ Alzette control ── invitation/outbox ──> email
     │                                      │
     └──────── OIDC callback <────── Casdoor identity
                     │
-                    └── (issuer, subject) -> Alzette user + membership
+                    └── (issuer, subject) -> Alzette person + company access
 
 Employee workstation
     │
@@ -323,7 +351,9 @@ Alzette owns:
 
 - business invitation state and exact acceptance transaction;
 - user-to-identity links;
-- organisation/project/environment memberships and role ceilings;
+- exactly-one-owner company authority, employee state, access groups, group
+  membership, and group model grants;
+- server-owned project/environment enforcement scopes derived from groups;
 - model aliases, endpoint entitlement, routing, and service mode;
 - human-agent grants/tokens, usage attribution, and audit.
 
@@ -353,14 +383,16 @@ transaction. After linking:
 
 ### 8.3 Invitation acceptance
 
-1. An authorised admin enters an exact email, role, project, environment, and
-   optional display name in Access → People. Before send, a human-readable
-   review shows organisation, role, project/environment, whether that role may
-   invoke inference, current route readiness, the one supported client/OS, and
-   that no personal API key will be created.
-2. Alzette derives the organisation and maximum permitted role from the current
-   portal session and stores a digest-only, expiring invitation.
-3. Email delivery contains the inviting organisation, inviter, exact scope,
+1. The current owner enters an exact email, optional display name, and at least
+   one enabled Alzette access group in Access → People. There is no role,
+   project, environment, or direct-model picker. Before send, a human-readable
+   review shows the company, employee status, groups, effective assigned model
+   endpoints, current route readiness, the supported client/OS, and that no
+   personal API key will be created.
+2. Alzette derives the company and owner authority from the current portal
+   session, resolves every group server-side, snapshots the intended group IDs,
+   and stores a digest-only, expiring invitation.
+3. Email delivery contains the inviting organisation, inviter, exact groups,
    expiry, canonical HTTPS acceptance link, and a non-secret gateway/model
    summary only when runtime evidence exists.
 4. `GET /accept-invite?token=...` may exchange the URL credential for a
@@ -373,12 +405,15 @@ transaction. After linking:
 6. The callback validates issuer, signature, audience, state, nonce, expiry,
    and an exact verified-email match for initial linking.
 7. One PostgreSQL transaction locks the invitation, rechecks expiry/revocation,
-   links or resolves the user, creates/enables the exact membership, records
-   audit, marks accepted, and invalidates other setup sessions.
-8. The user lands in the invited organisation/project/environment.
+   links or resolves the user, creates/enables the employee record and exact
+   group memberships, records audit, marks accepted, and invalidates other
+   setup sessions.
+8. The user lands in the invited company and sees only models derived from the
+   accepted group set.
 
 Concurrent acceptance, replay, resend rotation, revoked invitations, expired
-invitations, wrong identities, role elevation, and cross-tenant IDs fail
+invitations, wrong identities, group substitution, ownership escalation, and
+cross-tenant IDs fail
 closed. Acceptance never creates an `alz_k_` key or an `alz_u_` token.
 
 Membership invitation remains possible before a route is ready, because team
@@ -386,14 +421,14 @@ membership does not own infrastructure. In that state the UI and email say
 that agent connection is not yet enabled and omit a runnable setup command.
 Any “Invite and connect” presentation is disabled until an eligible model
 alias, current route evidence, workforce capability, and the named client/OS
-are all enabled for the exact scope.
+are all enabled for the assigned company and groups.
 
 The setup cookie is `__Host-alzette_setup`, `Secure`, `HttpOnly`,
 `SameSite=Strict`, `Path=/`, has no `Domain`, and expires within 15 minutes. The
 GET and clean page send `Cache-Control: no-store`, `Referrer-Policy:
 no-referrer`, a restrictive CSP with no third-party subresources, and no
 analytics or tracking pixels. Before exact Casdoor authentication the clean
-page discloses no organisation, inviter, role, project, or environment. A
+page discloses no organisation, inviter, group, model, project, or environment. A
 setup cookie alone grants no identity, membership, portal session, agent grant,
 or inference credential. Repeated scanner GETs may create bounded independent
 setup sessions but do not invalidate the invitation; successful acceptance,
@@ -442,7 +477,7 @@ different expiries.
 
 When exactly one inference-enabled context exists, `run` selects and displays
 it. When several exist, it presents a keyboard-accessible numbered choice with
-human-readable organisation/project/environment/role labels. The employee does
+human-readable company, group, project/environment, and model labels. The employee does
 not need to know or type an opaque membership ID. `--context <opaque-id>` is an
 advanced copy/paste override and remains fully re-authorized.
 
@@ -486,7 +521,7 @@ Credential-store modes are explicit:
   store;
 - `memory` keeps the refresh credential only for the current process and
   therefore requires browser login after exit; and
-- `file` is an administrator-policy-controlled, explicit opt-in for systems
+- `file` is a company-policy-controlled, explicit opt-in for systems
   without a usable keyring. Its directory is owner-only mode `0700`, its file
   is `0600`, writes are atomic, and symlink, hard-link, wrong-owner, or broader
   permission states fail closed.
@@ -547,9 +582,10 @@ approve an unexplained device.
 ### 9.3 Context selection and Alzette token mint
 
 After Casdoor authentication, the client asks the Alzette agent identity API
-for contexts. It receives only enabled memberships linked to the authenticated
-`(issuer, subject)`, with safe labels, role, permitted aliases, and a
-customer-facing gateway URL.
+for contexts. It receives only current effective contexts linked to the
+authenticated `(issuer, subject)`: every active company alias for the owner or
+group-derived aliases for an employee, with safe company, group where
+applicable, permitted-alias, and customer-facing gateway labels.
 
 If exactly one inference-enabled context exists, the client may select it
 automatically while displaying it. If several exist, the user must choose. A
@@ -565,8 +601,8 @@ authority, and is re-authorized on every call. The control service:
    `nbf`, and authorised client ID with bounded clock skew;
 3. performs configured token introspection before creating a grant or minting
    its next short token;
-4. resolves the exact active local identity, user, membership, role, and alias
-   entitlement;
+4. resolves the exact active local identity and person, then the current
+   owner/all-active-endpoint or employee/group-derived alias entitlement;
 5. creates an auditable agent grant or mints its next bounded short token;
 6. generates a 256-bit random `alz_u_` token, stores only its SHA-256 digest,
    and returns plaintext once with a maximum ten-minute expiry.
@@ -757,9 +793,10 @@ only for a structurally valid `alz_u_` credential rejected before ledger
 creation and reveals no tenant, user, or revocation reason.
 
 Every `alz_u_` authentication joins the active token, grant, external identity,
-human user, and enabled membership. It derives organisation, project,
-environment, allowed aliases, and `inference:write` from those records. The
-request cannot submit a tenant, membership, raw model slug, target, or provider.
+human user, and enabled company relationship. It derives organisation,
+project, environment, allowed aliases, and `inference:write` from the current
+owner/all-active-endpoint branch or employee/group branch. The request cannot
+submit a tenant, membership, raw model slug, target, or provider.
 
 `alz_u_` tokens authenticate only the supported inference routes. They do not
 authenticate portal APIs, operator APIs, billing APIs, or the existing
@@ -804,7 +841,7 @@ Usage totals must reconcile across both actor kinds. The portal exposes:
 
 - total organisation/project/environment consumption;
 - a breakdown by `Human agent` and `Service account`;
-- for authorised admins, safe human display name, role/context, requests,
+- for the owner, safe human display name, company context, requests,
   tokens with finality, errors, last-used time, and revocation state;
 - for an employee, their own safe attribution;
 - no prompt/output content, conversation titles, productivity score, or
@@ -826,13 +863,13 @@ the durable Casdoor login proves identity only.
 An already authenticated in-flight buffered request or SSE stream may complete
 under the gateway's bounded request timeout; P0 does not claim distributed
 mid-stream cancellation. The audit records that it began before the cutoff.
-This limitation appears in the administrator confirmation and offboarding
+This limitation appears in the owner confirmation and offboarding
 runbook.
 
 On a cached-token rejection, the proxy discards that `alz_u_` value. It may
 attempt the exact pre-request mint/retry protocol once; a disabled local user,
-identity, membership, or grant makes the broker fail, so no logical request or
-provider attempt is created. Unrelated organisation-owned service accounts and
+identity, person, group membership, or grant makes the broker fail, so no
+logical request or provider attempt is created. Unrelated organisation-owned service accounts and
 other memberships remain active.
 
 A locally cached Casdoor refresh credential does not weaken this guarantee. It
@@ -853,19 +890,78 @@ cannot be claimed until that synchronization path is tested.
 
 ### 12.1 Access workspace
 
-Access contains three visibly separate areas:
+Access contains four visibly separate areas:
 
-1. **People** — members, roles, scopes, invitations, resend/revoke/disable.
-2. **Your agent sessions** — identity method, context, client, created/last-used,
+1. **People** — owner-protected company roster, employees, invitations,
+   resend/revoke/disable, employee groups/effective model endpoints, and the
+   owner's all-active-endpoints relationship.
+2. **Groups** — owner-managed employee membership and model-endpoint grants;
+   employees see only their own groups and derived models.
+3. **Your agent sessions** — identity method, context, client, created/last-used,
    expiry, and revoke/logout.
-3. **Application access** — service accounts and one-time-reveal `alz_k_` keys.
+4. **Application access** — service accounts and one-time-reveal `alz_k_` keys.
 
-Use “Invite a person,” “Connect your agent,” “Sign in to Alzette,” and “Create
+Use “Invite an employee,” “Connect your agent,” “Sign in to Alzette,” and “Create
 application key.” Do not use the ambiguous action “Create credentials.”
 
 The portal reports whether browser login, device login, proxy, or a named
 native provider is enabled from server capability data. It does not render a
 button merely because a design exists.
+
+The Go control service owns normal-link, server-rendered routes:
+
+```text
+/app/access
+/app/access/people
+/app/access/people/invite
+/app/access/people/{person-id}
+/app/access/groups
+/app/access/groups/new
+/app/access/groups/{group-id}
+/app/access/agent-sessions
+/app/access/applications
+```
+
+Core forms work without JavaScript through CSRF-protected `POST` plus
+Post/Redirect/Get. Small vanilla modules may add list filtering, checked-item
+summaries, focus management, and confirmation enhancement; they never become
+the authority or a client-side router.
+
+The owner People view separates active people from pending invitations. The
+owner row is protected and offers no disable/remove action. Employee rows show
+status, groups, derived model endpoint access, safe last sign-in, and a detail
+action. The employee view shows only their own company access, groups, models,
+and agent-session link; it does not expose a coworker directory. “Invite an
+employee” asks only for exact work email, optional name, and one or more
+server-supplied enabled groups. Review shows the company, groups, derived model
+endpoints, readiness separately from assignment, fixed expiry, and the fact
+that no personal API key is created.
+
+The Groups view says “Groups decide which people can use which model
+endpoints.” A group has a unique company-scoped name, optional description,
+enabled/disabled state, employee memberships, and zero or more model endpoint
+grants. A group with no model grant is valid but grants no inference. Group
+detail uses independent forms for people and model endpoints so one edit cannot
+overwrite the other. Endpoint removal and group disable show a reviewed impact
+summary; records are retained for audit rather than hard-deleted. Assignment
+and runtime readiness remain separate states.
+
+The server renders explicit capabilities rather than one broad admin boolean:
+`people.read_self`, `people.read_company`, `people.invite`, `people.disable`,
+`groups.read_self`, `groups.read_company`, `groups.manage`,
+`invitations.enabled`, `identity_login.enabled`, and
+`workforce_access.enabled`. Only the current owner receives company-wide read
+or mutation capabilities. When workforce identity, canonical HTTPS, mail, or
+migration prerequisites are absent, mutation routes are not mounted and the UI
+shows a truthful unavailable state instead of an Invite/Connect action.
+
+People and Groups tables and forms remain usable at 320, 390, 1024, and 1440
+CSS pixels, 200% zoom, keyboard-only, screen reader, forced-colour, and
+reduced-motion settings. Native fieldsets/checkboxes are the baseline for
+group/model selection. Every validation response provides an error summary
+linked to inline errors; delivery status uses one restrained polite live
+region. Email addresses, aliases, and group names wrap without hiding status or
+actions.
 
 ### 12.2 Invitation email
 
@@ -873,7 +969,7 @@ Required copy:
 
 - subject: `You have been invited to <Organisation> on Alzette`;
 - Alzette and the inviting organisation in the first line;
-- inviter, exact role, project/environment, and expiry;
+- inviter, employee status, assigned groups, and expiry;
 - one canonical HTTPS acceptance button/link;
 - a statement that the employee will sign in as a person and will not receive
   an API key;
@@ -882,8 +978,8 @@ Required copy:
 
 Recommended customer copy is deliberately non-technical:
 
-> `<Inviter>` invited you to `<Organisation>` on Alzette with `<role>` access
-> to `<project> / <environment>`. Use the invited email address to sign in or
+> `<Inviter>` invited you to `<Organisation>` on Alzette as an employee in
+> `<groups>`. Use the invited email address to sign in or
 > create your Alzette identity. You will not receive or need a personal API
 > key. Next, accept the invitation, sign in, then connect the supported AI tool
 > for this workspace. This invitation expires `<date, time, and timezone>`.
@@ -899,7 +995,9 @@ Forbidden content:
 
 The authenticated page shows:
 
-- current organisation/project/environment and role;
+- current company and effective model endpoints—all active company endpoints
+  for the owner, or group-derived endpoints for an employee—and internal
+  project/environment context only where it helps identify the endpoint;
 - service mode and execution evidence separately from authentication;
 - gateway base URL and approved model aliases;
 - recommended command for the supported client/OS;
@@ -927,9 +1025,9 @@ Required customer-facing states include:
 - wrong identity: “This invitation is for a different invited email address.
   Sign out and try again, or ask the inviter to resend it.”;
 - route unavailable: “Your organisation has not enabled an agent route for
-  this workspace yet. Contact your administrator.”;
+  this workspace yet. Contact your company owner.”;
 - unsupported client: “This client is not enabled for this workspace. Use
-  `<named client/version>` or contact your administrator.”;
+  `<named client/version>` or contact your company owner.”;
 - expired identity session: “Your interactive session expired. Sign in again;
   no application key is required.”;
 - connected, not yet verified: “Agent connection started. No successful
@@ -943,11 +1041,65 @@ at 320, 390, 1024, and 1440 CSS pixels.
 
 ## 13. Data model and migration
 
-Use the next additive migration after the current `0010` schema, tentatively
-`0011_workforce_agent_access`. Do not rewrite the already-applied `0008`
-catalogue/onboarding groundwork.
+Use additive migrations beginning after the current `0011` schema. The planned
+split is `0012_company_people_groups` for company authority and group policy,
+`0013_workforce_identity_invitations` for federated identity and invitations,
+and `0014_human_agent_access` for grants, short tokens, mint idempotency, and
+ledger actor changes. Confirm the next unused numbers at implementation time;
+do not rewrite the already-applied `0008` catalogue/onboarding groundwork or
+`0011_endpoint_team_size`.
 
-### 13.1 `human_federated_identities`
+### 13.1 Company authority and group policy
+
+Minimum additive records:
+
+- `organisation_ownerships`: append-only ownership periods with
+  appointment/transfer/recovery actor, evidence, and timestamps. A partial
+  unique index permits at most one current owner per organisation; company
+  creation, transfer/recovery, restore, and close transactions enforce exactly
+  one at commit for every active organisation. Transfer atomically closes the
+  current period, starts one for an eligible existing employee, and retains the
+  prior owner as an employee.
+- `organisation_people`: the enabled/disabled link between a human user and an
+  organisation. Owner versus employee authority is derived from
+  `organisation_ownerships`, not a browser-supplied role or group.
+- `access_groups`: organisation-owned, stable ID, unique name, optional
+  description, internal project/environment enforcement scope, enabled state,
+  and lifecycle/audit timestamps. These are Alzette groups, never Casdoor or
+  customer-directory claims.
+- `access_group_people`: enabled person-to-group membership with composite
+  organisation foreign keys and audit lineage.
+- `access_group_models`: enabled group-to-customer-endpoint/model-alias grant
+  with composite organisation/project/environment foreign keys. It references
+  the Alzette route/endpoint identity, never a provider slug, target, host,
+  credential, profile, or machine.
+- `human_invitation_groups`: immutable initial-group snapshot for an
+  invitation. Acceptance revalidates every group under the invited company.
+
+One shared policy resolver computes effective model access for portal model
+discovery, People/Groups previews, agent contexts, token minting, and gateway
+authorization. No caller reimplements the join. Group/person/model disablement
+or removal revokes affected active human grants/tokens in the same transaction,
+or advances a checked policy generation that makes them unusable on the next
+request. Service accounts remain independent.
+
+Legacy `human_memberships.role` values remain readable during migration but do
+not authorize new customer actions. Migration assigns an owner only through an
+explicit deterministic and audited rule; ambiguous organisations require
+operator reconciliation and the workforce feature remains disabled for them.
+
+Ownership transfer is a high-assurance company-settings operation, never a
+People-row role edit. The current owner must recently authenticate, select one
+enabled same-company employee with a linked identity, and explicitly confirm.
+The transaction locks company, ownership, and target; ends the old ownership,
+starts the new one, retains the former owner as employee, revokes both portal
+sessions and affected human-agent tokens, and audits both IDs and reason. One
+concurrent transfer wins; failure leaves the old owner intact. The current
+owner cannot be disabled, removed, or leave outside that transaction.
+Operator-assisted recovery uses the same atomic replacement invariant with
+evidence and audit; it never impersonates the owner or issues inference access.
+
+### 13.2 `human_federated_identities`
 
 Minimum fields:
 
@@ -965,7 +1117,7 @@ No Casdoor access or refresh token is stored in this or any other Alzette
 table. A safe opaque Casdoor session-family reference may be recorded only when
 required for audited revocation and is never sufficient to refresh a session.
 
-### 13.2 `human_agent_grants`
+### 13.3 `human_agent_grants`
 
 Minimum fields:
 
@@ -979,7 +1131,7 @@ Minimum fields:
 A grant is not a route and cannot contain a target ID, target URL, provider
 secret, provider model slug, hardware record, or price.
 
-### 13.3 `human_agent_access_tokens`
+### 13.4 `human_agent_access_tokens`
 
 Minimum fields:
 
@@ -992,7 +1144,7 @@ Minimum fields:
 Plaintext is returned once and never stored. Token rows referenced by the
 immutable ledger remain safe historical evidence after expiry/revocation.
 
-### 13.4 `human_agent_credential_mints`
+### 13.5 `human_agent_credential_mints`
 
 Minimum fields:
 
@@ -1007,7 +1159,7 @@ The idempotency-key digest is unique for the authenticated identity/client for
 at least 24 hours. It coordinates the one-time-reveal response; it is not an
 authentication credential.
 
-### 13.5 Existing-table changes
+### 13.6 Existing-table changes
 
 - `human_users.password_hash` becomes nullable only with an authentication-
   method XOR constraint; existing bcrypt hashes remain valid during migration.
@@ -1036,18 +1188,30 @@ POST /logout
 GET  /accept-invite?token=...
 POST /accept-invite
 
-GET  /api/portal/members
+GET  /api/portal/people
 GET  /api/portal/invitations
 POST /api/portal/invitations
 POST /api/portal/invitations/resend
 POST /api/portal/invitations/revoke
-POST /api/portal/memberships/disable
+POST /api/portal/employees/disable
+POST /api/portal/employees/reactivate
+GET  /api/portal/access-groups
+POST /api/portal/access-groups
+POST /api/portal/access-groups/{id}/disable
+PUT  /api/portal/access-groups/{id}/people/{person-id}
+DELETE /api/portal/access-groups/{id}/people/{person-id}
+PUT  /api/portal/access-groups/{id}/models/{endpoint-id}
+DELETE /api/portal/access-groups/{id}/models/{endpoint-id}
+POST /api/portal/ownership/transfer
 GET  /api/portal/agent-grants
 POST /api/portal/agent-grants/revoke
 ```
 
 Cookie-authenticated mutations retain the existing CSRF and session-derived
-tenant rules. OIDC callback parameters never become inference credentials.
+tenant rules. Invitation input contains only `email`, optional `display_name`,
+and `group_ids`; ownership, role, project/environment, endpoint, and tenant
+authority fields are rejected. OIDC callback parameters never become inference
+credentials.
 
 ### 14.2 Agent identity API
 
@@ -1078,7 +1242,7 @@ Alzette agent resource. They accept no cookies and emit no permissive CORS.
 It also requires exactly one `Idempotency-Key: agm_<random>` header containing
 at least 128 random bits, with a bounded maximum length. The client generates a
 new key for each intended mint and never logs it. The server hashes it before
-persistence and binds it to the canonical request described in section 13.4.
+persistence and binds it to the canonical request described in section 13.5.
 
 It returns plaintext once:
 
@@ -1141,8 +1305,10 @@ errors belong to the local CLI/agent-identity API, not the public gateway.
 ```text
 alzette identity casdoor configure --issuer ... --client-secret-file ...
 alzette user invite --email ... --organisation-slug ... \
-  --project-slug ... --environment-slug ... --role developer
+  --group group_...
 alzette identity disable --user-id ...
+alzette ownership recover --organisation-id ... --new-owner-user-id ... \
+  --evidence-ref ...
 alzette agent-grant revoke --grant-id ...
 ```
 
@@ -1253,14 +1419,16 @@ narrow, reviewed broker behavior.
   only the configured resource-bound Casdoor access-token contract.
 - Invitation acceptance requires an exact verified identity and an active local
   invitation. Domain matching never grants access.
-- User or identity disablement blocks every local membership and grant on the
-  next new request. Membership disablement blocks only that scope. Grant/token
-  revoke blocks that agent session. In-flight behavior follows section 11.4.
+- User or identity disablement blocks every local person/group membership and
+  grant on the next new request. Group-person or group-model removal blocks
+  only the affected access. Grant/token revoke blocks that agent session. The
+  current owner cannot be disabled outside atomic transfer/recovery. In-flight
+  behavior follows section 11.4.
 - Gateway authentication checks current local state on every call, so
   offboarding does not wait for a Casdoor access token to expire.
 - A refresh credential proves only an ongoing Casdoor identity session. It
-  never bypasses current Alzette user, membership, role, model, grant, token,
-  or route checks and never enters the gateway.
+  never bypasses current Alzette user, person, owner-or-group model policy,
+  grant, token, or route checks and never enters the gateway.
 - Persistent refresh storage follows section 9.1. Keyring failure does not
   silently create a file; explicit file mode rejects links, wrong ownership,
   broad permissions, non-atomic replacement, and backup/support inclusion.
@@ -1330,20 +1498,20 @@ output analytics, or employee productivity ranking.
 
 | ID | Requirement | Testable acceptance |
 |---|---|---|
-| WAA-P0-001 | An authorised admin can invite an exact person into an exact allowed scope | Tenant/session-derived authority, role ceiling, idempotency, expiry, resend rotation, revoke, two-tenant tests, and a pre-send role/route/client readiness review pass; membership invite remains truthful when inference is unavailable |
+| WAA-P0-001 | The current owner can invite an exact employee with an exact initial group set | Company authority is session-derived; role/owner/tenant/project/endpoint fields are rejected; group IDs are same-company and revalidated; idempotency, expiry, resend rotation, revoke, two-tenant tests, and truthful assignment/readiness review pass |
 | WAA-P0-002 | Invitation acceptance uses Casdoor identity but Alzette membership authority | Exact verified identity and active invitation are required; GET, domain match, Casdoor role, replay, and concurrent acceptance grant nothing |
 | WAA-P0-003 | New external employees do not receive an Alzette password or personal `alz_k_` key | Casdoor owns authentication/recovery; acceptance creates no data-plane credential |
 | WAA-P0-004 | Browser login uses a public client with Authorization Code, mandatory PKCE S256, and one bounded rotating refresh session | Wrong/plain/missing/replayed verifier, state, nonce, redirect, issuer, audience, client, or refresh response fails closed; only the exact accepted refresh scope is requested; code exchange and refresh work without an embedded client secret |
 | WAA-P0-005 | Only evidenced login and client modes are advertised | Baseline P0 exposes browser PKCE plus one named proxy-backed client; device and native modes remain absent until their separate acceptance contract passes |
 | WAA-P0-006 | Casdoor identity is mapped only through `(issuer, subject)` | Same-email alternate subjects and unlinked identities receive no contexts or credential |
-| WAA-P0-007 | Agent context discovery returns only current enabled memberships and aliases | Cross-tenant, disabled, guessed, and role-ineligible contexts are absent/forbidden without enumeration |
+| WAA-P0-007 | Agent context discovery returns only current effective model aliases | The owner receives all active company aliases; employees receive only current group-derived aliases. Cross-tenant, disabled, guessed, zero-group, disabled-group, removed-model, and unavailable-route contexts are absent/forbidden without enumeration; portal discovery, mint, and gateway policy sets match |
 | WAA-P0-008 | Alzette mints a random ten-minute `alz_u_` credential bound to one membership and alias set | 256-bit token is returned once, only SHA-256 digest persists, one token is active per grant, and the exact replay/revoke/remint protocol leaves no ambiguous credential usable |
 | WAA-P0-009 | Gateway auth keeps `alz_k_` and `alz_u_` paths separate | One exact header and strict size/prefix/encoding; Casdoor JWT, portal cookie, Basic password, duplicate/mixed headers, malformed/oversized values, and invalid whitespace/case variants fail |
 | WAA-P0-010 | A human token resolves only its server-bound tenant route | No inference tenant selector exists; dedicated/shared and alias ownership tests remain fail-closed |
 | WAA-P0-011 | Disablement and revocation stop the next new request at the Alzette boundary | User, identity, membership, grant, or token disablement prevents the next gateway call and cached-proxy remint; an already authenticated bounded stream may finish and is audited; Casdoor-only disablement is not misrepresented as local revocation |
 | WAA-P0-012 | Service accounts remain unchanged for non-human workloads | Existing key issue/rotate/revoke, machine APIs, routing, and usage tests pass without altered behavior |
 | WAA-P0-013 | The ledger represents service and human actors truthfully | Actor XOR/composite FKs pass; historical rows migrate; totals reconcile; one logical request remains separate from attempts |
-| WAA-P0-014 | Authorised users can see safe per-employee consumption | Admin and self views are tenant-safe, reconcile to totals, show finality, and contain no content/productivity ranking |
+| WAA-P0-014 | The owner and each employee can see permitted safe consumption | Owner company view and employee self view are tenant-safe, reconcile to totals, show finality, and contain no content/productivity ranking |
 | WAA-P0-015 | The local proxy satisfies one named key-only client without exporting a remote credential | `run` passes a 256-bit per-launch capability only through the child environment; loopback-only listener, exact Bearer check/upstream, header stripping, no argv/file/log persistence, cleanup, and remote-bind failure tests pass |
 | WAA-P0-016 | Proxying preserves the supported agent protocol | Buffered/SSE text and tool calls, cancellation, first byte, terminal usage, errors, and request IDs match direct gateway behavior |
 | WAA-P0-017 | Short-token minting cannot duplicate inference | Only `401` plus the exact `not-created` marker and `human_token_inactive` code may trigger one mint/retry; ambiguous transport, provider error, missing/conflicting marker, or post-byte paths never replay |
@@ -1357,15 +1525,37 @@ output analytics, or employee productivity ranking.
 
 | ID | Requirement | Testable acceptance |
 |---|---|---|
-| WAA-P1-001 | A contracted customer can federate through its required OIDC/SAML method | Issuer mapping, MFA, recovery, role mapping, deprovisioning, and break-glass tests pass without changing Alzette tenant authority |
-| WAA-P1-002 | Directory lifecycle may use SCIM/JIT when required | User/group changes produce explainable local membership changes within the contractual target and are audited |
-| WAA-P1-003 | Customer administrators may enforce stricter session and credential-custody policy | Idle/absolute duration and allowed keyring/file/memory modes can only narrow platform ceilings; managed policy, audit, recovery, and two-tenant tests pass |
+| WAA-P1-001 | A contracted customer can federate through its required OIDC/SAML method | Issuer mapping, MFA, recovery, identity linking, deprovisioning, and break-glass tests pass without creating ownership or group authority from identity-provider claims |
+| WAA-P1-002 | Directory lifecycle may synchronize employees/groups through SCIM/JIT when required | User/group changes produce explainable local employee/group changes within the contracted mapping and are audited; only the Alzette owner can transfer ownership |
+| WAA-P1-003 | Company owners may enforce stricter session and credential-custody policy | Idle/absolute duration and allowed keyring/file/memory modes can only narrow platform ceilings; managed policy, audit, recovery, and two-tenant tests pass |
 | WAA-P1-004 | Additional native agents are supported only by tested adapters | Base URL, OAuth, storage, refresh, API subset, streaming/tool, and revocation contract passes per version |
-| WAA-P1-005 | Customer admins can review active human-agent access | Inventory/export shows safe actor, context, client, creation/last use/expiry/revoke and excludes secrets/content |
+| WAA-P1-005 | Company owners can review active human-agent access | Inventory/export shows safe actor, context, client, creation/last use/expiry/revoke and excludes secrets/content |
 | WAA-P1-006 | Sender-constrained tokens may be required for higher-risk customers | DPoP or equivalent proof, replay prevention, key rotation, recovery, and proxy/native support pass before being claimed |
 | WAA-P1-007 | A named pilot may enable Device Authorization for headless use | Discovery, pending interval, `slow_down`, denial, expiry, cancellation, approval context, code secrecy, restart behavior, and success pass before the mode is advertised |
 
 ## 20. Verification plan
+
+QA is an ordered release flow, not a collection of optional checks. A required
+gate cannot pass by skipping because PostgreSQL, a browser, or Casdoor was not
+configured. Every automated gate uses at least two synthetic companies, fixed
+clocks/keys where deterministic, and canary scans across logs, audit, database,
+HTTP responses, browser history, screenshots, and traces. Any cross-company
+visibility, reusable credential leak, partial ownership/invitation mutation,
+stale group entitlement, or unsupported capability claim fails the release.
+
+| Gate | Required evidence | Pass boundary |
+|---|---|---|
+| Q0 — contract and capability | Documentation consistency, fresh/upgrade/down-reapply migration plan, disabled workforce routes absent, incomplete enabled configuration refuses startup | Proves only that unimplemented/unsafe capability cannot be advertised |
+| Q1 — company authority and policy | PostgreSQL/domain tests for exactly one owner, owner all-active-endpoint access, atomic transfer/recovery, employee lifecycle, groups, group union, zero employee access, tenant composite FKs, audit, and policy-generation invalidation | Owner/People/Groups persistence and policy are deterministic and fail closed; no invitation, OAuth, or inference claim yet |
+| Q2 — identity and HTTP | Fixed-key fake OIDC discovery/JWKS/token/introspection plus real disposable PostgreSQL; PKCE/state/nonce/replay, exact identity, scanner-safe invitation, CSRF, non-enumeration, and portal-session tests | Exact invited employee reaches only the invited company/groups; still no real-Casdoor or remote claim |
+| Q3 — browser and gateway | Browser journey owner invite → OAuth → deliberate acceptance → group-filtered Models; gateway rejects OAuth JWT and accepts only digest-backed alias-bounded `alz_u_`; group removal/offboarding denies the next call; `alz_k_` regressions pass | Proves the complete deterministic software journey for the named fake IdP/target |
+| Q4 — pinned Casdoor acceptance | Digest-pinned isolated Casdoor with discovery/JWKS, public-client PKCE, resource audience, refresh rotation/reuse-family revoke, introspection/logout, disablement, signing-key rotation, restart, and backup/restore | Proves provider compatibility, not production remote OAuth |
+| Q5 — named pilot | Canonical HTTPS origins, Secure cookies, actual mail/sender, scanner behavior, real browser on named OS/client, signed artifact, both-database restore, measured offboarding, support/recovery runbooks, and independent review with no unresolved critical/high issue | Only this gate permits a remotely usable employee OAuth/invitation pilot claim |
+
+At Q1/Q2 the UI may expose only the capabilities proved at that gate. Until Q5,
+customer-facing surfaces must not claim production invitations, remote employee
+OAuth, customer federation/SCIM, general agent/OS support, or an offboarding
+SLA. A local Casdoor container is protocol evidence, not availability evidence.
 
 ### Deterministic default tests
 
@@ -1374,7 +1564,7 @@ output analytics, or employee productivity ranking.
   skew, unknown-key, inactive-token, and IdP-unavailable cases;
 - PKCE/state/nonce/code replay and loopback redirect tests;
 - exact refresh-scope request; refresh issuance and rotation; invalidated-token
-  reuse/family revoke; idle/absolute expiry; logout/admin revoke; malformed or
+  reuse/family revoke; idle/absolute expiry; logout/operator revoke; malformed or
   missing rotation response; concurrent processes; and a crash between remote
   rotation and atomic local replacement requiring browser login;
 - keyring success/unavailable/locked behavior; memory-mode restart; explicit
@@ -1382,13 +1572,13 @@ output analytics, or employee productivity ranking.
   and leak scans proving that access/ID/`alz_u_`/local keys never persist and
   refresh material appears only in the selected protected store;
 - invitation new/existing user, scanner GET, wrong identity, replay, concurrent
-  accept, expiry, revoke, resend generation, delivery failure, role ceiling,
-  and last-admin cases;
+  accept, expiry, revoke, resend generation, delivery failure, rejected role or
+  owner fields, same-company group validation, and exactly-one-owner cases;
 - redirect-following scanner GETs create no acceptance, identity, membership,
   grant, token, third-party request, referrer leak, cacheable response, or
   reusable authorising cookie; repeated GETs do not consume the invitation;
 - identity-link duplicate subject, duplicate email/different subject, disabled
-  user/identity/membership, unverified email, Casdoor role/group/organisation
+  user/identity/person/group, unverified email, Casdoor role/group/organisation
   claims, valid-but-unlinked identity, and legacy-link cases;
 - agent context/credential exact JSON, unknown fields, duplicate headers,
   canonical request hashing, same-key conflict/replay/in-progress behavior,
@@ -1412,6 +1602,12 @@ output analytics, or employee productivity ranking.
   the next new call/remint even when a refresh session remains usable,
   preserves unrelated service accounts, and records the documented bounded
   in-flight-stream behavior;
+- group union, zero-group, zero-model, add/remove person, add/remove model,
+  group disable, concurrent policy change, and portal/agent/gateway effective-
+  access equivalence; additions require remint and removals deny the next call;
+- ownership creation, fresh-auth transfer, concurrent/stale transfer, rollback,
+  current-owner disable rejection, session/token invalidation, and audited
+  operator recovery; every commit leaves exactly one current owner;
 - portal two-tenant member/session/usage visibility, keyboard, screen-reader,
   reduced motion, 320/390/1024/1440 layout, feature disabled/misconfigured
   startup behavior, and truthful unavailable states;
@@ -1442,6 +1638,14 @@ request replay, Compose isolation, or recovery.
 
 ## 21. Delivery increments
 
+Implementation checkpoint (2026-08-18): the local W1–W3 vertical slice is
+runnable. It includes owner-managed People/Groups/Application access, manual
+invitations, pinned-Casdoor browser acceptance, public PKCE token exchange,
+group-filtered contexts, `alz_u_` mint/revoke, strict gateway use, and human
+ledger attribution. The increment descriptions below remain the completion
+contract; ownership transfer/recovery, mail, the durable agent/proxy, the full
+Casdoor lifecycle matrix, and W5 remote-pilot evidence are still open.
+
 ### Increment W0 — Casdoor acceptance spike
 
 - pin the image/version and minimal one-replica configuration;
@@ -1452,17 +1656,37 @@ request replay, Compose isolation, or recovery.
 
 **Exit:** Casdoor passes section 16 without weakening any Alzette invariant.
 
-### Increment W1 — federated portal identity and invitations
+### Increment W1 — company authority, Access foundation, and Groups
 
-- additive identity/invitation schema and OIDC portal client;
-- exact invitation acceptance and existing-user linking;
-- People management, mail outbox, audit, recovery ownership, and feature flags;
+- additive exactly-one-owner, company-person, group membership, and
+  group-to-endpoint policy schema with tenant constraints;
+- normal-link server-rendered Access shell, owner-protected People read view,
+  and Groups list/create/detail/disable with separate people and model forms;
+- one effective-access resolver contract and implementation, used immediately
+  by People and Models and required for later agent-context, token, and gateway
+  consumers;
+- ownership transfer/recovery, audit, policy-generation invalidation, and
+  feature flags.
+
+**Exit:** the owner can manage groups and active company endpoints; the owner
+sees every active company endpoint, employee access resolves only from enabled
+groups, and no invitation or OAuth capability is advertised yet.
+
+### Increment W2 — federated identity and employee invitations
+
+- additive federated-identity, invitation, setup-session, OIDC, and mail-outbox
+  schema and services;
+- exact invitation acceptance, existing-user linking, and immutable initial
+  group snapshot with same-company revalidation;
+- People invite/resend/revoke/disable/reactivate UI and employee self view;
 - retain legacy local login during controlled migration.
 
-**Exit:** an admin invites an employee; the exact employee authenticates through
-Casdoor and enters only the invited portal context without an Alzette password.
+**Exit:** the owner invites an employee; the exact employee authenticates
+through Casdoor and enters only that company with the recorded initial groups,
+without an Alzette password or any path to ownership. Removing group access
+blocks the next discovery or remint.
 
-### Increment W2 — human-agent token and accounting
+### Increment W3 — human-agent token and accounting
 
 - agent context/credential API and short `alz_u_` token generator;
 - distinct gateway authenticator and generalized principal;
@@ -1473,21 +1697,29 @@ Casdoor and enters only the invited portal context without an Alzette password.
 usage under the human actor, and the next new request is denied after the local
 offboarding transaction.
 
-### Increment W3 — local proxy and first client
+### Increment W4 — local proxy and first client
 
 - separate `alzette-agent` Go binary;
-- browser login, protected rotating-refresh store, automatic identity refresh,
-  context selection, short-token mint, `login`, `login status`, `logout`, and
-  `run`; no background daemon or persistent gateway token;
+- browser login, automatic in-process identity refresh, context selection,
+  short-token mint, memory-only `login` diagnostic, `run`, and Pi shorthand;
+  no background daemon or persistent gateway token;
 - loopback/header/privacy/retry hardening;
-- first agreed agent and operating-system compatibility tests.
+- Pi 0.84.2, Jan Desktop 0.8.4, and Goose Desktop 1.46.0 text-stream
+  compatibility evidence on local Linux.
+
+Implemented local-demo subset: the helper plus the named Pi, Jan, and Goose
+paths satisfy credential custody and first text inference. A protected
+rotating-refresh store, durable `login status`/`logout`, automatic native-
+client configuration, signed cross-platform packaging, function-tool
+compatibility through the human path, and broader client version/OS evidence
+remain before this increment's full exit.
 
 **Exit:** an invited employee starts an agreed key-only agent through one login
 without copying a remote credential; streaming/tool behavior and accounting
 match a direct call, and the employee reaches the first verified request without
 knowing a context ID, provider, target, token type, Casdoor, or OAuth term.
 
-### Increment W4 — remote pilot release
+### Increment W5 — remote pilot release
 
 - canonical TLS ingress, secure cookies, transactional mail, signed artifact,
   authenticated sender domain, delivery/failure/resend evidence, monitoring,
@@ -1503,16 +1735,18 @@ the current LAN HTTP demo is no longer part of the access path.
 ### Documentation gate
 
 This PRD and its references are internally consistent. Current product
-documentation explicitly labels the workflow unimplemented.
+documentation labels the invitation/OAuth/human-credential path as implemented
+for the tested local Compose configuration and keeps mail, TLS, durable client,
+recovery, and remote-pilot claims explicitly unavailable.
 
 ### Offline software gate
 
-W0–W3 deterministic tests pass with a fake IdP and fake inference target. No
+W0–W4 deterministic tests pass with a fake IdP and fake inference target. No
 real mail, provider, or Casdoor claim is made from deterministic evidence.
 
 ### External pilot gate
 
-Go only when W4 passes, one supported OS/agent/version is named, the customer
+Go only when W5 passes, one supported OS/agent/version is named, the customer
 accepts the per-employee metadata policy, the actual Casdoor/mail/TLS paths are
 tested, and offboarding denial is measured.
 
@@ -1527,18 +1761,16 @@ MeluXina target.
 
 | Decision | Owner | Needed by |
 |---|---|---|
-| Canonical portal, auth, inference, and mail origins | Founder/platform | W0/W1 |
-| First supported employee OS and agent/version | Founder/first pilot/platform | W3 |
-| Fixed verification request, allowance treatment, and route-readiness rule | Product/platform | W2/W3 |
+| Canonical portal, auth, inference, and mail origins | Founder/platform | W0/W2 |
+| First supported employee OS and agent/version | Founder/first pilot/platform | W4 |
+| Fixed verification request, allowance treatment, and route-readiness rule | Product/platform | W3/W4 |
 | Confirm the provisional one-hour access-token, 30-day inactivity, and 90-day absolute refresh-session ceilings against pinned Casdoor behavior | Security/product | W0 |
-| Decide whether owner-managed employee/group model allow-lists enter P0; today access can be narrowed only by project/environment membership | Founder/product/security | Before W2 scope freeze |
-| Transactional mail provider and sender domain | Founder/platform | W1 |
-| Which roles receive `inference:write` in evaluation versus paid organisations | Product/security | W1/W2 |
-| Initial per-employee usage visibility and retention policy | Founder/customer/legal | W2/pilot gate |
-| Pilot funnel thresholds for invite acceptance, first success, and repeat use | Founder/growth/first pilot | W3/W4 |
-| Binary distribution, signing, checksum, and upgrade owner | Platform/security | W3/W4 |
+| Transactional mail provider and sender domain | Founder/platform | W2 |
+| Initial per-employee usage visibility and retention policy | Founder/customer/legal | W3/pilot gate |
+| Pilot funnel thresholds for invite acceptance, first success, and repeat use | Founder/growth/first pilot | W4/W5 |
+| Binary distribution, signing, checksum, and upgrade owner | Platform/security | W4/W5 |
 | Whether a later Pi native OAuth path delegates to the proxy or passes direct storage review | Platform/security | P1 |
-| Casdoor patch, signing-key, backup, restore, and break-glass owner | Platform/security | W0/W4 |
+| Casdoor patch, signing-key, backup, restore, and break-glass owner | Platform/security | W0/W5 |
 | Whether a production customer requires shorter sessions, keyring-only custody, DPoP, customer SSO, or SCIM | Customer/security | Production gate |
 
 None of these decisions permits a temporary personal API key as a silent
@@ -1549,7 +1781,7 @@ reuses the protected refresh session until its idle/absolute bound or revoke.
 
 This feature is done for P0 when:
 
-- an authorised employer invites an exact employee into an exact context;
+- the current owner invites an exact employee into an exact initial group set;
 - the employee authenticates through Casdoor and becomes an Alzette member only
   after the atomic invitation transaction;
 - the employee can run the first supported agent through browser login without
@@ -1562,7 +1794,8 @@ This feature is done for P0 when:
   and never accepts a Casdoor token directly;
 - the local proxy is loopback-only, process-scoped, protocol-transparent, and
   content/credential silent;
-- disabling the employee or membership blocks the next inference request;
+- disabling the employee or removing their group access blocks the next
+  inference request;
 - service accounts continue to operate independently;
 - company totals reconcile across human and service actors, with safe
   per-employee attribution and no prompt/output persistence;
