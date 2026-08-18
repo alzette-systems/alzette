@@ -27,6 +27,7 @@ type Workload struct {
 	ExpectedRequestsPerMinute *int    `json:"expected_requests_per_minute"`
 	LatencyPriority           *string `json:"latency_priority"`
 	ExpectedMonthlyRequests   *int64  `json:"expected_monthly_requests"`
+	ExpectedUserCount         *int    `json:"expected_user_count,omitempty"`
 }
 
 type Configuration struct {
@@ -150,6 +151,7 @@ type Quote struct {
 
 type CreateInput struct {
 	ModelSlug     string   `json:"model_slug"`
+	ServiceMode   string   `json:"service_mode,omitempty"`
 	OfferCode     string   `json:"offer_code"`
 	ProfileCode   string   `json:"profile_code"`
 	EndpointAlias string   `json:"endpoint_alias"`
@@ -230,11 +232,20 @@ func (s *Service) Create(ctx context.Context, session platform.PortalSession, in
 		return Configuration{}, platform.ErrForbidden
 	}
 	input.ModelSlug = strings.TrimSpace(strings.ToLower(input.ModelSlug))
+	input.ServiceMode = strings.TrimSpace(strings.ToLower(input.ServiceMode))
 	input.OfferCode = strings.TrimSpace(strings.ToLower(input.OfferCode))
 	input.ProfileCode = strings.TrimSpace(strings.ToLower(input.ProfileCode))
 	input.EndpointAlias = strings.TrimSpace(input.EndpointAlias)
 	input.Workload = normalizeWorkload(input.Workload)
-	if !slugPattern.MatchString(input.ModelSlug) || !slugPattern.MatchString(input.OfferCode) || !slugPattern.MatchString(input.ProfileCode) || !aliasPattern.MatchString(input.EndpointAlias) || input.CapacityUnits < 1 || input.CapacityUnits > 128 || validateWorkload(input.Workload) != nil {
+	if !slugPattern.MatchString(input.ModelSlug) || validateWorkload(input.Workload) != nil {
+		return Configuration{}, platform.ErrInvalid
+	}
+	managedSelection := input.ServiceMode != ""
+	if managedSelection {
+		if (input.ServiceMode != "shared" && input.ServiceMode != "dedicated") || input.OfferCode != "" || input.ProfileCode != "" || input.EndpointAlias != "" || input.CapacityUnits != 0 || input.Workload.ExpectedUserCount == nil {
+			return Configuration{}, platform.ErrInvalid
+		}
+	} else if !slugPattern.MatchString(input.OfferCode) || !slugPattern.MatchString(input.ProfileCode) || !aliasPattern.MatchString(input.EndpointAlias) || input.CapacityUnits < 1 || input.CapacityUnits > 128 {
 		return Configuration{}, platform.ErrInvalid
 	}
 	digest, err := idempotencyDigest(idempotencyKey)
@@ -312,7 +323,9 @@ func (s *Service) Capacity(ctx context.Context, session platform.PortalSession, 
 		return DeploymentRequest{}, platform.ErrForbidden
 	}
 	workload = normalizeWorkload(workload)
-	if !validID(endpointID) || units < 1 || units > 128 || validateWorkload(workload) != nil {
+	// Team size belongs to endpoint acquisition. Keep the separate capacity
+	// increase contract unchanged even though both APIs share Workload.
+	if workload.ExpectedUserCount != nil || !validID(endpointID) || units < 1 || units > 128 || validateWorkload(workload) != nil {
 		return DeploymentRequest{}, platform.ErrInvalid
 	}
 	digest, err := idempotencyDigest(idempotencyKey)
@@ -353,6 +366,9 @@ func validateWorkload(value Workload) error {
 		return platform.ErrInvalid
 	}
 	if value.ExpectedMonthlyRequests != nil && (*value.ExpectedMonthlyRequests < 1 || *value.ExpectedMonthlyRequests > 1_000_000_000_000) {
+		return platform.ErrInvalid
+	}
+	if value.ExpectedUserCount != nil && (*value.ExpectedUserCount < 1 || *value.ExpectedUserCount > 10000) {
 		return platform.ErrInvalid
 	}
 	if value.LatencyPriority != nil {

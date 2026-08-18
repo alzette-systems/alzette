@@ -28,3 +28,16 @@ func TestValidateFormatRejectsMalformedTokens(t *testing.T) {
 		}
 	}
 }
+
+func TestHumanTokenFormatIsStrictlySeparate(t *testing.T) {
+	key, err := GenerateHuman()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateHumanFormat(key.Token); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateFormat(key.Token); err == nil {
+		t.Fatal("human token passed service-account validation")
+	}
+}

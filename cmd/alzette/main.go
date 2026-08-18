@@ -18,13 +18,16 @@ import (
 	"syscall"
 	"time"
 
+	"alzette/internal/agentauth"
 	"alzette/internal/api"
 	"alzette/internal/billing"
 	stripeadapter "alzette/internal/billing/stripe"
+	"alzette/internal/casdoorbootstrap"
 	"alzette/internal/catalogue"
 	"alzette/internal/control"
 	"alzette/internal/endpoints"
 	"alzette/internal/faketarget"
+	"alzette/internal/federation"
 	"alzette/internal/gateway"
 	"alzette/internal/humanauth"
 	"alzette/internal/platform"
@@ -34,6 +37,7 @@ import (
 	"alzette/internal/slice0smoke"
 	pgstore "alzette/internal/store/postgres"
 	"alzette/internal/worker"
+	"alzette/internal/workforce"
 )
 
 func main() {
@@ -62,6 +66,10 @@ func run(arguments []string) error {
 		return runKey(arguments)
 	case "user":
 		return runUser(arguments)
+	case "ownership":
+		return runOwnership(arguments)
+	case "identity":
+		return runIdentity(arguments)
 	case "worker":
 		return runWorker(arguments)
 	case "catalogue":
@@ -86,6 +94,24 @@ func run(arguments []string) error {
 	}
 }
 
+func runIdentity(arguments []string) error {
+	if len(arguments) != 1 || arguments[0] != "bootstrap-casdoor" {
+		return errors.New("usage: alzette identity bootstrap-casdoor")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	result, err := casdoorbootstrap.Run(ctx, casdoorbootstrap.Config{
+		Endpoint: os.Getenv("ALZETTE_CASDOOR_BOOTSTRAP_ENDPOINT"), AdminPassword: os.Getenv("ALZETTE_CASDOOR_ADMIN_PASSWORD"),
+		ClientID: os.Getenv("ALZETTE_WORKFORCE_OIDC_CLIENT_ID"), ClientSecret: os.Getenv("ALZETTE_WORKFORCE_OIDC_CLIENT_SECRET"), RedirectURL: os.Getenv("ALZETTE_WORKFORCE_OIDC_REDIRECT_URL"),
+		AgentRedirectURL: os.Getenv("ALZETTE_WORKFORCE_AGENT_OIDC_REDIRECT_URL"),
+		DemoUsername:     os.Getenv("ALZETTE_CASDOOR_DEMO_USERNAME"), DemoPassword: os.Getenv("ALZETTE_CASDOOR_DEMO_PASSWORD"), DemoEmail: os.Getenv("ALZETTE_CASDOOR_DEMO_EMAIL"), AllowInsecure: envBool("ALZETTE_ALLOW_INSECURE_WORKFORCE_OIDC"),
+	})
+	if err != nil {
+		return err
+	}
+	return writeOperatorJSON(result)
+}
+
 func printUsage() {
 	fmt.Fprintln(os.Stderr, `Usage:
   alzette gateway [--addr :8080]
@@ -99,6 +125,7 @@ func printUsage() {
   alzette user provision [membership flags]
   alzette user rotate-password --username NAME
   alzette user disable --username NAME
+  alzette ownership assign --organisation-slug SLUG --username NAME --evidence-ref REF
   alzette catalogue seed [catalogue flags]
   alzette endpoint quote --request-id ID [commercial flags]
   alzette endpoint transition --request-id ID --state STATE [fulfilment flags]
@@ -383,11 +410,29 @@ func newApplicationHandler(mode, staticDirectory string, database *sql.DB, store
 		if err != nil {
 			return nil, err
 		}
+		var workforceService *workforce.Service
+		if workforceStore, ok := store.(workforce.Store); ok {
+			workforceService = workforce.New(workforceStore)
+		}
+		oidcProvider, err := configuredWorkforceOIDC()
+		if err != nil {
+			return nil, err
+		}
+		if oidcProvider != nil {
+			accessValidator, validatorOK := oidcProvider.(federation.AccessTokenProvider)
+			agentStore, storeOK := store.(agentauth.Store)
+			if !validatorOK || !storeOK {
+				return nil, errors.New("workforce agent-access capability set is incomplete")
+			}
+			agentHandler := agentauth.NewHandler(agentauth.New(agentStore, accessValidator), envOr("ALZETTE_PUBLIC_CONTROL_URL", "http://127.0.0.1:8081"), os.Getenv("ALZETTE_PUBLIC_GATEWAY_URL"), os.Getenv("ALZETTE_WORKFORCE_AGENT_OIDC_REDIRECT_URL"))
+			mux.Handle("/.well-known/alzette-agent-configuration", agentHandler)
+			mux.Handle("/api/agent/", agentHandler)
+		}
 		site, err := portal.New(portal.Config{
 			Store: store, PortalStore: portalStore, StaticDirectory: staticDirectory,
 			CookieSecure: envBoolDefault("ALZETTE_PORTAL_COOKIE_SECURE", true), SessionTTL: sessionTTL,
 			PublicGatewayURL: os.Getenv("ALZETTE_PUBLIC_GATEWAY_URL"), AllowInsecurePublicGateway: envBool("ALZETTE_ALLOW_INSECURE_PUBLIC_GATEWAY"),
-			Catalogue: catalogueService, Endpoints: endpointService, Billing: billingService,
+			Catalogue: catalogueService, Endpoints: endpointService, Billing: billingService, Workforce: workforceService, OIDC: oidcProvider,
 		})
 		if err != nil {
 			return nil, err
@@ -397,6 +442,23 @@ func newApplicationHandler(mode, staticDirectory string, database *sql.DB, store
 		mux.Handle("/", webserver.NotFoundHandler())
 	}
 	return mux, nil
+}
+
+func configuredWorkforceOIDC() (federation.Provider, error) {
+	config := federation.Config{
+		Issuer: os.Getenv("ALZETTE_WORKFORCE_OIDC_ISSUER"), ClientID: os.Getenv("ALZETTE_WORKFORCE_OIDC_CLIENT_ID"),
+		ClientSecret: os.Getenv("ALZETTE_WORKFORCE_OIDC_CLIENT_SECRET"), RedirectURL: os.Getenv("ALZETTE_WORKFORCE_OIDC_REDIRECT_URL"),
+		AllowInsecure: envBool("ALZETTE_ALLOW_INSECURE_WORKFORCE_OIDC"),
+	}
+	if config.Issuer == "" && config.ClientID == "" && config.ClientSecret == "" && config.RedirectURL == "" {
+		return nil, nil
+	}
+	if config.Issuer == "" || config.ClientID == "" || config.ClientSecret == "" || config.RedirectURL == "" {
+		return nil, errors.New("workforce OIDC configuration is incomplete")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return federation.New(ctx, config)
 }
 
 func endpointControlServices(store platform.Store) (*catalogue.Service, *endpoints.Service, *billing.Service, error) {
@@ -700,6 +762,43 @@ func runUser(arguments []string) error {
 	default:
 		return fmt.Errorf("unknown user command %q", command)
 	}
+}
+
+func runOwnership(arguments []string) error {
+	if len(arguments) == 0 {
+		return errors.New("ownership requires assign")
+	}
+	command := arguments[0]
+	arguments = arguments[1:]
+	if command != "assign" {
+		return fmt.Errorf("unknown ownership command %q", command)
+	}
+	flags := flag.NewFlagSet("ownership assign", flag.ContinueOnError)
+	spec := workforce.InitialOwnerSpec{}
+	flags.StringVar(&spec.OrganisationSlug, "organisation-slug", "", "existing organisation slug")
+	flags.StringVar(&spec.Username, "username", "", "enabled portal username in the organisation")
+	flags.StringVar(&spec.EvidenceRef, "evidence-ref", "", "operator evidence reference for the initial owner decision")
+	if err := flags.Parse(arguments); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("unexpected positional arguments")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	database, store, err := openStore(ctx)
+	if err != nil {
+		return err
+	}
+	defer database.Close()
+	if err := pgstore.Migrate(ctx, database); err != nil {
+		return err
+	}
+	result, err := workforce.New(store).AssignInitialOwner(ctx, spec)
+	if err != nil {
+		return err
+	}
+	return writeOperatorJSON(result)
 }
 
 func humanPassword(filename string) (string, bool, error) {

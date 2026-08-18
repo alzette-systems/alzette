@@ -73,6 +73,7 @@ func (s *Store) RefreshUsageRollups(ctx context.Context, from, to, asOf time.Tim
 		       usage_finality,attempt_count
 		  FROM inference_requests
 		 WHERE started_at >= $1 AND started_at < $2
+		   AND service_account_id IS NOT NULL
 		 ORDER BY started_at`, from, to)
 	if err != nil {
 		return 0, err
@@ -189,7 +190,7 @@ func (s *Store) RefreshUsageRollups(ctx context.Context, from, to, asOf time.Tim
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO worker_checkpoints(organisation_id,project_id,environment_id,worker_name,last_started_at,last_completed_at,status,range_from,range_to,source_rows,safe_error_class)
 		SELECT e.organisation_id,e.project_id,e.id,'usage_rollup',$3,$3,'succeeded',$1,$2,
-		       (SELECT count(*) FROM inference_requests ir WHERE ir.organisation_id=e.organisation_id AND ir.project_id=e.project_id AND ir.environment_id=e.id AND ir.started_at >= $1 AND ir.started_at < $2),NULL
+		       (SELECT count(*) FROM inference_requests ir WHERE ir.organisation_id=e.organisation_id AND ir.project_id=e.project_id AND ir.environment_id=e.id AND ir.service_account_id IS NOT NULL AND ir.started_at >= $1 AND ir.started_at < $2),NULL
 		  FROM environments e
 		ON CONFLICT(organisation_id,project_id,environment_id,worker_name)
 		DO UPDATE SET last_started_at=EXCLUDED.last_started_at,last_completed_at=EXCLUDED.last_completed_at,

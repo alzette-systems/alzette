@@ -62,10 +62,14 @@ func (s *Store) Authenticate(ctx context.Context, digest [32]byte) (platform.Pri
 	if err := json.Unmarshal(scopesJSON, &principal.Scopes); err != nil {
 		return platform.Principal{}, fmt.Errorf("decode API key scopes: %w", err)
 	}
+	principal.CredentialKind = "service_account_key"
 	return principal, nil
 }
 
 func (s *Store) ResolveRoute(ctx context.Context, principal platform.Principal, alias string) (platform.Route, error) {
+	if !principal.AllowsModel(alias) {
+		return platform.Route{}, platform.ErrForbidden
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return platform.Route{}, fmt.Errorf("begin route resolution: %w", err)
@@ -113,13 +117,25 @@ func (s *Store) ResolveRoute(ctx context.Context, principal platform.Principal, 
 }
 
 func (s *Store) CreateInferenceRequest(ctx context.Context, start platform.RequestStart) error {
-	_, err := s.db.ExecContext(ctx, `
+	var err error
+	if start.Principal.CredentialKind == "human_agent_token" {
+		_, err = s.db.ExecContext(ctx, `
+		INSERT INTO inference_requests (
+			id, organisation_id, project_id, environment_id, human_user_id,
+			human_membership_id, agent_grant_id, agent_token_id, model_alias, started_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			start.ID, start.Principal.OrganisationID, start.Principal.ProjectID, start.Principal.EnvironmentID,
+			start.Principal.HumanUserID, start.Principal.HumanMembershipID, start.Principal.AgentGrantID,
+			start.Principal.AgentTokenID, start.ModelAlias, start.StartedAt)
+	} else {
+		_, err = s.db.ExecContext(ctx, `
 		INSERT INTO inference_requests (
 			id, organisation_id, project_id, environment_id, service_account_id,
 			api_key_id, key_prefix, model_alias, started_at
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-		start.ID, start.Principal.OrganisationID, start.Principal.ProjectID, start.Principal.EnvironmentID,
-		start.Principal.ServiceAccountID, start.Principal.APIKeyID, start.Principal.KeyPrefix, start.ModelAlias, start.StartedAt)
+			start.ID, start.Principal.OrganisationID, start.Principal.ProjectID, start.Principal.EnvironmentID,
+			start.Principal.ServiceAccountID, start.Principal.APIKeyID, start.Principal.KeyPrefix, start.ModelAlias, start.StartedAt)
+	}
 	if err != nil {
 		return mapWriteError("create inference request", err)
 	}

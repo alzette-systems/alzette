@@ -22,25 +22,43 @@ var (
 )
 
 type Principal struct {
-	OrganisationID   string
-	OrganisationName string
-	OrganisationSlug string
-	ProjectID        string
-	ProjectName      string
-	ProjectSlug      string
-	EnvironmentID    string
-	EnvironmentName  string
-	EnvironmentSlug  string
-	ServiceAccountID string
-	ServiceAccount   string
-	APIKeyID         string
-	KeyPrefix        string
-	Scopes           []string
+	CredentialKind      string
+	OrganisationID      string
+	OrganisationName    string
+	OrganisationSlug    string
+	ProjectID           string
+	ProjectName         string
+	ProjectSlug         string
+	EnvironmentID       string
+	EnvironmentName     string
+	EnvironmentSlug     string
+	ServiceAccountID    string
+	ServiceAccount      string
+	APIKeyID            string
+	KeyPrefix           string
+	HumanUserID         string
+	HumanMembershipID   string
+	AgentGrantID        string
+	AgentTokenID        string
+	AllowedModelAliases []string
+	Scopes              []string
 }
 
 func (p Principal) HasScope(scope string) bool {
 	for _, candidate := range p.Scopes {
 		if candidate == scope {
+			return true
+		}
+	}
+	return false
+}
+
+func (p Principal) AllowsModel(alias string) bool {
+	if p.CredentialKind != "human_agent_token" {
+		return true
+	}
+	for _, candidate := range p.AllowedModelAliases {
+		if candidate == alias {
 			return true
 		}
 	}

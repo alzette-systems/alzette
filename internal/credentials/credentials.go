@@ -10,7 +10,10 @@ import (
 	"strings"
 )
 
-const tokenMarker = "alz_k_"
+const (
+	tokenMarker      = "alz_k_"
+	humanTokenMarker = "alz_u_"
+)
 
 type Key struct {
 	Token  string
@@ -22,7 +25,15 @@ func Generate() (Key, error) {
 	return GenerateFrom(rand.Reader)
 }
 
+func GenerateHuman() (Key, error) {
+	return generateFrom(rand.Reader, humanTokenMarker)
+}
+
 func GenerateFrom(source io.Reader) (Key, error) {
+	return generateFrom(source, tokenMarker)
+}
+
+func generateFrom(source io.Reader, marker string) (Key, error) {
 	public := make([]byte, 8)
 	secret := make([]byte, 24)
 	if _, err := io.ReadFull(source, public); err != nil {
@@ -31,7 +42,7 @@ func GenerateFrom(source io.Reader) (Key, error) {
 	if _, err := io.ReadFull(source, secret); err != nil {
 		return Key{}, err
 	}
-	prefix := tokenMarker + hex.EncodeToString(public)
+	prefix := marker + hex.EncodeToString(public)
 	token := prefix + "." + base64.RawURLEncoding.EncodeToString(secret)
 	return Key{Token: token, Prefix: prefix, Digest: Digest(token)}, nil
 }
@@ -41,14 +52,22 @@ func Digest(token string) [32]byte {
 }
 
 func ValidateFormat(token string) error {
-	if len(token) != len(tokenMarker)+16+1+32 || !strings.HasPrefix(token, tokenMarker) {
+	return validateFormat(token, tokenMarker)
+}
+
+func ValidateHumanFormat(token string) error {
+	return validateFormat(token, humanTokenMarker)
+}
+
+func validateFormat(token, marker string) error {
+	if len(token) != len(marker)+16+1+32 || !strings.HasPrefix(token, marker) {
 		return errors.New("invalid API key format")
 	}
-	separator := len(tokenMarker) + 16
+	separator := len(marker) + 16
 	if token[separator] != '.' {
 		return errors.New("invalid API key format")
 	}
-	if _, err := hex.DecodeString(token[len(tokenMarker):separator]); err != nil {
+	if _, err := hex.DecodeString(token[len(marker):separator]); err != nil {
 		return errors.New("invalid API key format")
 	}
 	secret, err := base64.RawURLEncoding.DecodeString(token[separator+1:])

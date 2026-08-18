@@ -41,6 +41,12 @@ func (s *endpointPortalStub) GetCustomerEndpoint(context.Context, platform.Porta
 func (s *endpointPortalStub) CreateEndpointConfiguration(_ context.Context, session platform.PortalSession, input endpoints.CreateInput, _ [32]byte) (endpoints.Configuration, error) {
 	s.created++
 	s.createdScope = session.Current
+	if input.ServiceMode == "shared" {
+		input.OfferCode = "free-evaluation"
+		input.ProfileCode = "shared-compatible"
+		input.EndpointAlias = "safe-chat"
+		input.CapacityUnits = 1
+	}
 	s.configuration = endpoints.Configuration{ID: "cfg_customer_safe", ModelSlug: input.ModelSlug, ModelName: "Safe Chat", ReleaseVersion: "v1", OfferCode: input.OfferCode, OfferKind: "shared_evaluation", ProfileCode: input.ProfileCode, EndpointAlias: input.EndpointAlias, CapacityUnits: input.CapacityUnits, Workload: input.Workload, Status: "draft", CreatedAt: s.now}
 	return s.configuration, nil
 }
@@ -128,7 +134,7 @@ func TestPortalCatalogueEndpointContractsCSRFAndServerScope(t *testing.T) {
 	if err := json.Unmarshal(catalogueResponse.Body.Bytes(), &catalogueBody); err != nil || catalogueBody["schema"] != "alzette.portal.catalogue.v1" {
 		t.Fatal("catalogue response schema mismatch")
 	}
-	const body = `{"model_slug":"safe-chat","offer_code":"free-evaluation","profile_code":"shared-compatible","endpoint_alias":"safe-chat","capacity_units":1,"workload":{"use_case":"evaluation","expected_context_tokens":null,"expected_concurrency":null,"expected_requests_per_minute":null,"latency_priority":null,"expected_monthly_requests":null}}`
+	const body = `{"model_slug":"safe-chat","service_mode":"shared","workload":{"expected_user_count":20}}`
 	noCSRF := authenticatedRequest(http.MethodPost, "/api/portal/endpoint-configurations", body)
 	noCSRF.Header.Del("X-CSRF-Token")
 	noCSRFResponse := httptest.NewRecorder()
@@ -141,6 +147,13 @@ func TestPortalCatalogueEndpointContractsCSRFAndServerScope(t *testing.T) {
 	if noIdempotency.Code != http.StatusBadRequest || store.created != 0 {
 		t.Fatalf("missing idempotency status=%d created=%d", noIdempotency.Code, store.created)
 	}
+	mixedSelection := authenticatedRequest(http.MethodPost, "/api/portal/endpoint-configurations", `{"model_slug":"safe-chat","service_mode":"shared","offer_code":"free-evaluation","workload":{"expected_user_count":20}}`)
+	mixedSelection.Header.Set("Idempotency-Key", "configuration-operation-mixed")
+	mixedSelectionResponse := httptest.NewRecorder()
+	app.ServeHTTP(mixedSelectionResponse, mixedSelection)
+	if mixedSelectionResponse.Code != http.StatusBadRequest || store.created != 0 {
+		t.Fatalf("browser selected an internal offer status=%d created=%d", mixedSelectionResponse.Code, store.created)
+	}
 	unsafe := authenticatedRequest(http.MethodPost, "/api/portal/endpoint-configurations", strings.TrimSuffix(body, "}")+`,"target_url":"https://forbidden.invalid"}`)
 	unsafe.Header.Set("Idempotency-Key", "configuration-operation-unsafe")
 	unsafeResponse := httptest.NewRecorder()
@@ -152,7 +165,7 @@ func TestPortalCatalogueEndpointContractsCSRFAndServerScope(t *testing.T) {
 	valid.Header.Set("Idempotency-Key", "configuration-operation-valid")
 	validResponse := httptest.NewRecorder()
 	app.ServeHTTP(validResponse, valid)
-	if validResponse.Code != http.StatusCreated || store.created != 1 || store.createdScope.OrganisationID != base.session.Current.OrganisationID || store.createdScope.ProjectID != base.session.Current.ProjectID || store.createdScope.EnvironmentID != base.session.Current.EnvironmentID {
+	if validResponse.Code != http.StatusCreated || store.created != 1 || store.createdScope.OrganisationID != base.session.Current.OrganisationID || store.createdScope.ProjectID != base.session.Current.ProjectID || store.createdScope.EnvironmentID != base.session.Current.EnvironmentID || store.configuration.Workload.ExpectedUserCount == nil || *store.configuration.Workload.ExpectedUserCount != 20 {
 		t.Fatalf("valid create status=%d created=%d", validResponse.Code, store.created)
 	}
 	restored := httptest.NewRecorder()

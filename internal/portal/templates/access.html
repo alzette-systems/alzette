@@ -1,0 +1,301 @@
+{{/*
+THESIS: Access is a company ledger: one protected owner, employees, and groups that visibly map people to model endpoints; it refuses role matrices and credential ambiguity.
+OWN-WORLD: Alzette's warm paper, ruled ledgers, night navigation, restrained river-green focus, squared controls, and mono verification labels.
+STORY: Confirm who owns the company, inspect employee access, then manage one group's people and endpoint assignments with independent forms.
+FIRST VIEWPORT: Persistent scoped rail, compact company context, Access subnavigation, then the owner/employee relationship ledger before any mutation.
+FORM: Established Operate surface, scoped-ledger extension; no concept seed because this inherits the existing portal and the product contract fixes its structure.
+*/}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Manage company people and model access groups in the Alzette client portal.">
+  <title>Access — Alzette Systems</title>
+  <link rel="icon" href="/alzette-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/portal.css">
+  {{if eq .Active "applications"}}<meta name="alzette-api-mode" content="live"><script src="/portal.js" defer></script>{{end}}
+</head>
+<body class="portal-page portal-page--server" data-view="access">
+  <a class="skip-link" href="#portal-main">Skip to portal content</a>
+
+  <details class="server-mobile-nav">
+    <summary><span class="server-mobile-nav__brand"><img src="/alzette-mark.svg" alt="" width="26" height="26"><span>alzette<span>.systems</span></span></span><span class="server-mobile-nav__action">Menu</span></summary>
+    <div class="server-mobile-nav__panel">
+      <div class="server-mobile-nav__scope"><small>Signed-in scope</small><strong>{{.Scope.ProjectEnvironment}}</strong><span>{{.Scope.Organisation}}</span></div>
+      <nav aria-label="Mobile portal navigation"><a href="/app/overview">Overview</a><a href="/app/models">Models</a><a href="/app/endpoints">Endpoints</a><a href="/app/usage">Usage</a><a href="/app/access" aria-current="page">Access</a><a href="/app/billing">Billing</a><a href="/app/docs">Docs</a></nav>
+      <div class="server-mobile-nav__footer"><span><i class="status-dot" data-state="{{if .Access.Configured}}live{{else}}partial{{end}}" aria-hidden="true"></i>{{if .Access.Configured}}Explicit company authority{{else}}Owner reconciliation required{{end}}</span>{{if .CSRFToken}}<form method="post" action="/logout"><input type="hidden" name="_csrf" value="{{.CSRFToken}}"><button type="submit">Sign out</button></form>{{end}}</div>
+    </div>
+  </details>
+
+  <div class="portal-shell">
+    <aside class="portal-rail" id="portal-nav" aria-label="Portal navigation">
+      <div class="rail-top">
+        <div class="rail-brand-row">
+          <a class="portal-brand" href="/app/overview" aria-label="Alzette client portal overview">
+            <img src="/alzette-mark.svg" alt="" class="portal-brand__mark" width="28" height="28">
+            <span>alzette<span class="portal-brand__suffix">.systems</span></span>
+          </a>
+        </div>
+        <div class="rail-context" aria-label="Current authenticated scope">
+          <span class="rail-context__label">Signed-in scope</span>
+          <strong>{{.Scope.ProjectEnvironment}}</strong>
+          <span class="rail-context__sub">{{.Scope.Organisation}}</span>
+        </div>
+        <nav class="portal-nav" aria-label="Client workspaces">
+          <a href="/app/overview">Overview</a>
+          <a href="/app/models">Models</a>
+          <a href="/app/endpoints">Endpoints</a>
+          <a href="/app/usage">Usage</a>
+          <a href="/app/access" aria-current="page">Access</a>
+          <a href="/app/billing">Billing</a>
+          <a href="/app/docs">Docs</a>
+        </nav>
+      </div>
+      <div class="rail-bottom">
+        <div class="rail-source" role="status">
+          <span class="status-dot" data-state="{{if .Access.Configured}}live{{else}}partial{{end}}" aria-hidden="true"></span>
+          <div>
+            <span class="rail-context__label">Company access</span>
+            <strong>{{if .Access.Configured}}Explicit authority{{else}}Reconciliation required{{end}}</strong>
+          </div>
+        </div>
+        {{if .CSRFToken}}
+        <form method="post" action="/logout">
+          <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+          <button class="rail-signout" type="submit">Sign out <span aria-hidden="true">↗</span></button>
+        </form>
+        {{end}}
+      </div>
+    </aside>
+
+    <div class="portal-content">
+      <header class="portal-topbar">
+        <div class="topbar-leading">
+          <div class="scope-line" aria-label="Current context">
+            <span>{{.Scope.Organisation}}</span><span class="scope-slash" aria-hidden="true">/</span><span>{{.Scope.Project}}</span><span class="scope-slash" aria-hidden="true">/</span><span>{{.Scope.Environment}}</span>
+          </div>
+        </div>
+        <div class="topbar-trailing"><span class="context-role">{{.UserLabel}}</span></div>
+      </header>
+
+      <main id="portal-main" class="portal-main" tabindex="-1">
+        <div class="portal-main__inner access-workspace">
+          <header class="workspace-heading workspace-heading--compact access-heading">
+            <div>
+              <p class="eyebrow">Access</p>
+              <h1>People and model access</h1>
+              <p class="workspace-heading__lead">One company owner manages employees and groups. Groups decide which model endpoints an employee can use.</p>
+            </div>
+          </header>
+
+          <nav class="access-subnav" aria-label="Access sections">
+            <a href="/app/access/people"{{if or (eq .Active "people") (eq .Active "new-invitation") (eq .Active "invitation-created")}} aria-current="page"{{end}}>People</a>
+            <a href="/app/access/groups"{{if or (eq .Active "groups") (eq .Active "new-group") (eq .Active "group") (eq .Active "disable-group")}} aria-current="page"{{end}}>Groups</a>
+            <span aria-disabled="true">Agent sessions <small>Not enabled</small></span>
+            {{if .Access.CanManage}}<a href="/app/access?view=applications"{{if eq .Active "applications"}} aria-current="page"{{end}}>Application access</a>{{else}}<span aria-disabled="true">Application access <small>Owner only</small></span>{{end}}
+          </nav>
+
+          {{if .Notice}}<div class="form-notice" role="status">{{.Notice}}</div>{{end}}
+          {{if .Error}}<div class="form-error-summary" role="alert"><strong>Access was not changed.</strong><span>{{.Error}}</span></div>{{end}}
+
+          {{if not .Access.Configured}}
+          <section class="access-boundary" aria-labelledby="access-reconcile-title">
+            <div>
+              <p class="panel-kicker">Authority unavailable</p>
+              <h2 id="access-reconcile-title">The company owner has not been explicitly established.</h2>
+            </div>
+            <p>Legacy portal roles are not being promoted automatically. An operator must reconcile exactly one existing company person before People or Groups can be managed.</p>
+            <code>alzette ownership assign --organisation-slug … --username … --evidence-ref …</code>
+          </section>
+          {{else if eq .Access.Relationship ""}}
+          <section class="access-boundary" aria-labelledby="access-link-title">
+            <div><p class="panel-kicker">Account not linked</p><h2 id="access-link-title">This legacy portal account has no company-person record.</h2></div>
+            <p>No company roster or group information is exposed. Ask the operator to reconcile this existing account in the current company.</p>
+          </section>
+          {{else if eq .Active "people"}}
+          <section class="access-section" aria-labelledby="people-title">
+            <div class="access-section__heading">
+              <div><p class="panel-kicker">Company relationships</p><h2 id="people-title">People</h2><p>Ownership is protected and is not an editable role. Employee model access is the union of enabled group assignments.</p></div>
+              {{if .Access.CanManage}}<a class="button button--dark" href="/app/access/invitations/new">Invite employee <span aria-hidden="true">+</span></a>{{end}}
+            </div>
+            <div class="table-wrap access-table-wrap">
+              <table class="access-people-table">
+                <thead><tr><th scope="col">Person</th><th scope="col">Relationship</th><th scope="col">Groups</th><th scope="col">Effective models</th><th scope="col">Status</th></tr></thead>
+                <tbody>
+                  {{range .Access.People}}
+                  <tr>
+                    <th scope="row"><strong>{{.DisplayName}}</strong>{{if .Email}}<small>{{.Email}}</small>{{else}}<small>Email not recorded</small>{{end}}</th>
+                    <td><span class="relationship-label relationship-label--{{.Relationship}}">{{if eq .Relationship "owner"}}Owner{{else}}Employee{{end}}</span></td>
+                    <td>{{if eq .Relationship "owner"}}<span class="table-muted">Not group-limited</span>{{else if .Groups}}{{range $index, $group := .Groups}}{{if $index}}, {{end}}<a href="/app/access/groups/{{$group.ID}}">{{$group.Name}}</a>{{end}}{{else}}<span class="table-muted">No groups</span>{{end}}</td>
+                    <td>{{if .EffectiveModels}}{{range $index, $model := .EffectiveModels}}{{if $index}}, {{end}}<code>{{$model.Alias}}</code>{{end}}{{else}}<span class="table-muted">No model access</span>{{end}}</td>
+                    <td>{{if .Enabled}}Enabled{{else}}Disabled{{end}}</td>
+                  </tr>
+                  {{else}}
+                  <tr><td colspan="5">No company people are available for this authenticated account.</td></tr>
+                  {{end}}
+                </tbody>
+              </table>
+            </div>
+            {{if .Access.CanManage}}
+            <section class="invitation-ledger" aria-labelledby="invitations-title">
+              <div class="access-section__heading"><div><p class="panel-kicker">Employee onboarding</p><h2 id="invitations-title">Invitations</h2><p>Each invitation is bound to one exact email and an immutable initial group set. Invitations create employees only.</p></div></div>
+              <div class="table-wrap access-table-wrap">
+                <table class="access-people-table invitation-table"><thead><tr><th scope="col">Recipient</th><th scope="col">Initial groups</th><th scope="col">Status</th><th scope="col">Expires</th><th scope="col">Actions</th></tr></thead><tbody>
+                  {{range .Access.Invitations}}
+                  <tr><th scope="row"><strong>{{if .DisplayName}}{{.DisplayName}}{{else}}Invited employee{{end}}</strong><small>{{.Email}}</small></th><td>{{range $index, $group := .Groups}}{{if $index}}, {{end}}{{$group.Name}}{{end}}</td><td><span class="invitation-status invitation-status--{{.Status}}">{{.Status}}</span></td><td><time datetime="{{.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.ExpiresAt.Format "02 Jan 2006, 15:04 UTC"}}</time></td><td>{{if eq .Status "pending"}}<div class="row-actions"><form method="post" action="/app/access/invitations/{{.ID}}/resend"><input type="hidden" name="_csrf" value="{{$.CSRFToken}}"><button class="row-action" type="submit">Resend</button></form><form method="post" action="/app/access/invitations/{{.ID}}/revoke"><input type="hidden" name="_csrf" value="{{$.CSRFToken}}"><button class="row-action row-action--danger" type="submit">Revoke</button></form></div>{{else}}<span class="table-muted">No actions</span>{{end}}</td></tr>
+                  {{else}}<tr><td colspan="5">No employee invitations have been created.</td></tr>{{end}}
+                </tbody></table>
+              </div>
+            </section>
+            {{end}}
+          </section>
+          {{else if eq .Active "groups"}}
+          <section class="access-section" aria-labelledby="groups-title">
+            <div class="access-section__heading">
+              <div><p class="panel-kicker">Employee model policy</p><h2 id="groups-title">Groups</h2><p>Each group belongs to the current project/environment. A group with no model endpoint grants no inference access.</p></div>
+              {{if .Access.CanManage}}<a class="button button--dark" href="/app/access/groups/new">Create group <span aria-hidden="true">+</span></a>{{end}}
+            </div>
+            <div class="group-ledger">
+              {{range .Access.Groups}}
+              <article class="group-row{{if not .Enabled}} group-row--disabled{{end}}">
+                <div class="group-row__identity"><span class="group-state">{{if .Enabled}}Enabled{{else}}Disabled{{end}}</span><h3><a href="/app/access/groups/{{.ID}}">{{.Name}}</a></h3><p>{{if .Description}}{{.Description}}{{else}}No description supplied.{{end}}</p></div>
+                <dl><div><dt>Employees</dt><dd>{{len .People}}</dd></div><div><dt>Model endpoints</dt><dd>{{len .Models}}</dd></div><div><dt>Scope</dt><dd>{{.Project}} / {{.Environment}}</dd></div></dl>
+              </article>
+              {{else}}
+              <div class="access-empty"><strong>No access groups in this scope.</strong>{{if .Access.CanManage}}<span>Create the first group, then assign employees and model endpoints independently.</span>{{else}}<span>The owner has not assigned this employee to a group in the current scope.</span>{{end}}</div>
+              {{end}}
+            </div>
+          </section>
+          {{else if eq .Active "applications"}}
+          <section class="access-section access-applications" data-view="access" aria-labelledby="applications-title">
+            <div class="access-section__heading">
+              <div><p class="panel-kicker">Application access</p><h2 id="applications-title">Software and workload keys</h2><p>Manage named service accounts and scoped Alzette keys. These credentials are separate from employee access, and plaintext is shown only once.</p></div>
+              <button class="button button--dark" type="button" id="service-account-open">Create service account <span aria-hidden="true">+</span></button>
+            </div>
+            <div class="permission-state" id="access-permission" data-state="unknown" role="note"><strong>Company owner action</strong><span>Confirming current company ownership.</span></div>
+            <section class="panel access-accounts-panel" aria-labelledby="accounts-title">
+              <div class="panel-heading"><div><p class="panel-kicker">Scoped identities</p><h2 id="accounts-title">Service accounts</h2><p class="panel-heading__note">Create a named software identity before issuing its first inference key. Names and scopes are metadata; plaintext keys are never listed here.</p></div><span class="panel-source" data-bind="access.source">Loading access snapshot</span></div>
+              <div id="service-accounts-list" class="account-list"><div class="list-empty">Loading service-account records.</div></div>
+            </section>
+            <section class="panel access-keys-panel" aria-labelledby="keys-title">
+              <div class="panel-heading"><div><p class="panel-kicker">Credential inventory</p><h2 id="keys-title">Keys and lifecycle actions</h2><p class="panel-heading__note">Issue an overlap key for a planned handoff, rotate before revocation, and revoke when an old credential must stop working.</p></div><span class="panel-source">Prefix only · no plaintext</span></div>
+              <div class="table-wrap"><table class="data-table access-table" id="access-keys-table"><caption class="sr-only">Service account keys and lifecycle status</caption><thead><tr><th scope="col">Key name</th><th scope="col">Prefix</th><th scope="col">Scopes</th><th scope="col">Created</th><th scope="col">Expiry</th><th scope="col">Last used</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody><tr><td colspan="8" class="table-empty">Loading key records.</td></tr></tbody></table></div>
+            </section>
+            <aside class="access-guidance" aria-label="Key lifecycle guidance"><div class="access-guidance__item"><strong>Issue overlap</strong><p>Keep the current key active while a new client is deployed.</p></div><div class="access-guidance__item"><strong>Rotate</strong><p>Create a replacement, store it once, then schedule old-key revocation.</p></div><div class="access-guidance__item"><strong>Revoke</strong><p>Stop a key immediately after confirming it is no longer needed.</p></div></aside>
+          </section>
+          {{else if eq .Active "new-invitation"}}
+          <section class="access-editor" aria-labelledby="invite-title">
+            <div class="access-editor__intro"><p class="panel-kicker">Invite employee</p><h2 id="invite-title">Choose the person and their first groups.</h2><p>The invitation is bound to the exact email below. It creates an employee, never another owner, and grants no direct model exception.</p></div>
+            {{if .Access.CanManage}}
+            <form class="access-form" method="post" action="/app/access/invitations">
+              <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+              {{if .Error}}<p class="field-error" id="invitation-form-error">Review the email and group selection below.</p>{{end}}
+              <label><span>Employee email</span><input type="email" name="email" value="{{.DraftInvitation.Email}}" maxlength="320" required autocomplete="email"{{if .Error}} aria-invalid="true" aria-describedby="invitation-form-error invitation-email-help"{{else}} aria-describedby="invitation-email-help"{{end}}><small id="invitation-email-help">Use the employee's exact work email. A matching domain never grants access by itself.</small></label>
+              <label><span>Display name <em>Optional</em></span><input type="text" name="display_name" value="{{.DraftInvitation.DisplayName}}" maxlength="255" autocomplete="name"><small>This is invitation context only; the verified identity remains authoritative after acceptance.</small></label>
+              <fieldset><legend>Initial access groups <span>At least one</span></legend>
+                {{range .Access.Groups}}{{if .Enabled}}<label class="choice-row"><input type="checkbox" name="group_id" value="{{.ID}}"{{if hasID $.DraftInvitation.GroupIDs .ID}} checked{{end}}><span><strong>{{.Name}}</strong><small>{{len .Models}} model endpoint{{if ne (len .Models) 1}}s{{end}} · {{.Project}} / {{.Environment}}</small></span></label>{{end}}{{else}}<p class="fieldset-empty">Create an enabled access group before inviting an employee.</p>{{end}}
+              </fieldset>
+              <div class="form-actions"><button class="button button--dark" type="submit">Create invitation</button><a class="button button--quiet" href="/app/access/people">Cancel</a></div>
+            </form>
+            {{else}}<div class="access-empty"><strong>Only the company owner can invite employees.</strong></div>{{end}}
+          </section>
+          {{else if and (eq .Active "invitation-created") .InvitationDelivery}}
+          <section class="access-editor invitation-delivery" aria-labelledby="invitation-created-title">
+            <div class="access-editor__intro"><p class="panel-kicker">Manual delivery</p><h2 id="invitation-created-title">Invitation created.</h2><p>Send this one-time acceptance link to {{.InvitationDelivery.Invitation.Email}} through a trusted channel. The link is not stored in plaintext and will not be shown again.</p></div>
+            <div class="access-form">
+              <div class="invitation-facts"><div><span>Employee</span><strong>{{if .InvitationDelivery.Invitation.DisplayName}}{{.InvitationDelivery.Invitation.DisplayName}}{{else}}{{.InvitationDelivery.Invitation.Email}}{{end}}</strong></div><div><span>Initial groups</span><strong>{{range $index, $group := .InvitationDelivery.Invitation.Groups}}{{if $index}}, {{end}}{{$group.Name}}{{end}}</strong></div><div><span>Expires</span><strong>{{.InvitationDelivery.Invitation.ExpiresAt.Format "02 Jan 2006, 15:04 UTC"}}</strong></div></div>
+              <label><span>Acceptance link · shown once</span><input class="one-time-link" type="text" readonly value="{{.InvitationURL}}" aria-describedby="invitation-link-help"><small id="invitation-link-help">Copy the complete link now. Resend rotates it and permanently invalidates this value.</small></label>
+              <div class="form-actions"><a class="button button--dark" href="/app/access/people">I copied the link</a></div>
+            </div>
+          </section>
+          {{else if eq .Active "new-group"}}
+          <section class="access-editor" aria-labelledby="new-group-title">
+            <div class="access-editor__intro"><p class="panel-kicker">New access group</p><h2 id="new-group-title">Name the employee access boundary.</h2><p>Create the group in {{.Scope.ProjectEnvironment}}. Model endpoints are optional now; employees are assigned after creation.</p></div>
+            {{if .Access.CanManage}}
+            <form class="access-form" method="post" action="/app/access/groups">
+              <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+              {{if .Error}}<p class="field-error" id="group-form-error">Review the group name and selected model endpoints below.</p>{{end}}
+              <label><span>Group name</span><input name="name" value="{{.DraftGroup.Name}}" maxlength="128" required autocomplete="off"{{if .Error}} aria-invalid="true" aria-describedby="group-form-error group-name-help"{{else}} aria-describedby="group-name-help"{{end}}><small id="group-name-help">Use a stable business-facing name such as “Research” or “Client operations”.</small></label>
+              <label><span>Description <em>Optional</em></span><textarea name="description" maxlength="1000" rows="3">{{.DraftGroup.Description}}</textarea><small>Explain who this group is for, not a technical permission code.</small></label>
+              <fieldset><legend>Model endpoints <span>Optional</span></legend>
+                {{range .Access.AvailableModels}}<label class="choice-row"><input type="checkbox" name="route_id" value="{{.RouteID}}"{{if hasID $.DraftGroup.RouteIDs .RouteID}} checked{{end}}><span><strong>{{.Alias}}</strong><small>{{.Project}} / {{.Environment}}</small></span></label>{{else}}<p class="fieldset-empty">No active model endpoints are available in this scope. The group can still be created with zero model access.</p>{{end}}
+              </fieldset>
+              <div class="form-actions"><button class="button button--dark" type="submit">Create group</button><a class="button button--quiet" href="/app/access/groups">Cancel</a></div>
+            </form>
+            {{else}}<div class="access-empty"><strong>Only the company owner can create groups.</strong></div>{{end}}
+          </section>
+          {{else if and (eq .Active "group") .Group}}
+          <section class="access-section" aria-labelledby="group-title">
+            <div class="access-section__heading group-detail-heading"><div><p class="panel-kicker">Access group · {{if .Group.Enabled}}Enabled{{else}}Disabled{{end}}</p><h2 id="group-title">{{.Group.Name}}</h2><p>{{if .Group.Description}}{{.Group.Description}}{{else}}No description supplied.{{end}}</p></div><a class="button button--quiet" href="/app/access/groups">All groups</a></div>
+            <div class="group-policy-summary"><p>Effective access</p><strong>Employees: {{len .Group.People}} · Model endpoints: {{len .Group.Models}}</strong><span>Assignments apply only while the group, employee, endpoint, and company route remain enabled.</span></div>
+            {{if and .Access.CanManage .Group.Enabled}}
+            <div class="group-editors">
+              <form class="access-form access-form--embedded" method="post" action="/app/access/groups/{{.Group.ID}}/people">
+                <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+                <fieldset><legend>Employees <span>{{len .Group.People}} assigned</span></legend>
+                  {{range .Employees}}<label class="choice-row"><input type="checkbox" name="person_id" value="{{.ID}}"{{if hasPerson $.Group .ID}} checked{{end}}{{if not .Enabled}} disabled{{end}}><span><strong>{{.DisplayName}}</strong><small>{{if .Email}}{{.Email}}{{else}}Email not recorded{{end}}</small></span></label>{{else}}<p class="fieldset-empty">No employees are available. Invitations are not enabled yet.</p>{{end}}
+                </fieldset>
+                <button class="button button--dark" type="submit">Save employees</button>
+              </form>
+              <form class="access-form access-form--embedded" method="post" action="/app/access/groups/{{.Group.ID}}/models">
+                <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+                <fieldset><legend>Model endpoints <span>{{len .Group.Models}} assigned</span></legend>
+                  {{range .Access.AvailableModels}}<label class="choice-row"><input type="checkbox" name="route_id" value="{{.RouteID}}"{{if hasModel $.Group .RouteID}} checked{{end}}><span><strong>{{.Alias}}</strong><small>{{.Project}} / {{.Environment}}</small></span></label>{{else}}<p class="fieldset-empty">No active model endpoints are available in this scope.</p>{{end}}
+                </fieldset>
+                <button class="button button--dark" type="submit">Save model endpoints</button>
+              </form>
+            </div>
+            <div class="danger-zone">
+              <div><strong>Disable this group</strong><span>Employees lose this group's model access at the next authorization check. The record remains for audit.</span></div>
+              <a class="button button--danger" href="/app/access/groups/{{.Group.ID}}/disable">Review disablement</a>
+            </div>
+            {{else if not .Group.Enabled}}<div class="access-empty"><strong>This group is disabled.</strong><span>It grants no model access and is retained as audit evidence.</span></div>{{end}}
+          </section>
+          {{else if and (eq .Active "disable-group") .Group}}
+          <section class="access-editor access-editor--confirm" aria-labelledby="disable-group-title">
+            <div class="access-editor__intro"><p class="panel-kicker">Confirm access removal</p><h2 id="disable-group-title">Disable {{.Group.Name}}?</h2><p>This group will stop granting its {{len .Group.People}} assigned employees access to {{len .Group.Models}} model endpoints at the next authorization check.</p></div>
+            {{if and .Access.CanManage .Group.Enabled}}<form class="access-form" method="post" action="/app/access/groups/{{.Group.ID}}/disable"><input type="hidden" name="_csrf" value="{{.CSRFToken}}"><div class="confirmation-facts"><strong>This action has no self-service undo.</strong><span>The disabled group remains visible as audit evidence. Recreate a group if access is needed later.</span></div><div class="form-actions"><button class="button button--danger" type="submit">Disable group now</button><a class="button button--quiet" href="/app/access/groups/{{.Group.ID}}">Keep group enabled</a></div></form>{{else}}<div class="access-empty"><strong>This group cannot be disabled.</strong><span>It is already disabled or this account is not the company owner.</span></div>{{end}}
+          </section>
+          {{end}}
+        </div>
+      </main>
+    </div>
+  </div>
+
+  {{if eq .Active "applications"}}
+  <dialog class="portal-dialog" id="service-account-dialog" aria-labelledby="service-account-dialog-title">
+    <form class="dialog-form" id="service-account-form">
+      <div class="dialog-heading"><div><p class="panel-kicker">Owner-only setup</p><h2 id="service-account-dialog-title">Create a service account</h2></div><button class="dialog-close" type="button" data-dialog-close aria-label="Close create service account dialog">×</button></div>
+      <p>Give the application a named identity before issuing its first key. Scopes and expiry are chosen when a key is issued.</p>
+      <label class="field-label" for="service-account-name">Name<input id="service-account-name" name="name" autocomplete="off" required maxlength="80" placeholder="document-workflow"></label>
+      <p class="form-error" id="service-account-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button class="button button--quiet" type="button" data-dialog-close>Cancel</button><button class="button button--dark" type="submit">Create account</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="portal-dialog" id="key-dialog" aria-labelledby="key-dialog-title">
+    <form class="dialog-form" id="key-form">
+      <div class="dialog-heading"><div><p class="panel-kicker" data-bind="key.actionLabel">Issue key</p><h2 id="key-dialog-title">Issue a scoped key</h2></div><button class="dialog-close" type="button" data-dialog-close aria-label="Close key dialog">×</button></div>
+      <p id="key-dialog-copy">The server returns plaintext only after a successful issue or rotation. Store it immediately; it cannot be recovered here.</p>
+      <label class="field-label" for="key-service-account">Service account<select id="key-service-account" name="service_account" required></select></label>
+      <label class="field-label" for="key-name">Key name<input id="key-name" name="name" maxlength="80" autocomplete="off" required placeholder="handoff-2026-08"></label>
+      <fieldset class="scope-fieldset" id="key-scope-fieldset"><legend>Least-privilege scopes</legend><div id="key-scope-options"></div><p class="form-help" data-bind="access.scopeHelp">Allowed scopes are supplied by the server.</p></fieldset>
+      <label class="field-label" for="key-expiry-mode">Expiry method<select id="key-expiry-mode" name="expiry_mode"><option value="relative">Relative policy</option><option value="exact">Exact date/time</option></select></label>
+      <label class="field-label" for="key-expiry">Expires in<select id="key-expiry" name="expiry"></select></label>
+      <label class="field-label" for="key-expiry-date" id="key-expiry-date-wrap" hidden>Exact expiry date/time<input id="key-expiry-date" name="expiry_date" type="datetime-local"></label>
+      <div class="key-action-explain" data-key-explain="overlap"><strong>Issue overlap key</strong><span>The existing key stays active while the new client is deployed.</span></div>
+      <div class="key-action-explain" data-key-explain="rotate" hidden><strong>Rotate key</strong><span>A replacement is created before the old key is revoked.</span></div>
+      <div class="key-action-explain" data-key-explain="first" hidden><strong>Issue first key</strong><span>This service account has no active key. Plaintext appears only after issue.</span></div>
+      <p class="form-error" id="key-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button class="button button--quiet" type="button" data-dialog-close>Cancel</button><button class="button button--dark" type="submit">Continue</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="portal-dialog portal-dialog--secret" id="secret-dialog" aria-labelledby="secret-dialog-title">
+    <form method="dialog" class="dialog-form"><div class="dialog-heading"><div><p class="panel-kicker">One-time reveal</p><h2 id="secret-dialog-title">Store this key now</h2></div><button class="dialog-close" value="close" aria-label="Close one-time key dialog">×</button></div><p>This is the only time Alzette displays the plaintext key. Copy it into your secret manager before closing.</p><div class="secret-reveal"><code id="secret-value"></code><button class="button button--quiet" id="secret-copy" type="button">Copy key</button></div><p class="micro-note">The browser keeps this value in memory only. It is not written to storage or the access table.</p><div class="dialog-actions"><button class="button button--dark" value="close">I stored it</button></div></form>
+  </dialog>
+  <div class="toast" id="portal-toast" role="status" aria-live="polite" hidden></div>
+  {{end}}
+</body>
+</html>

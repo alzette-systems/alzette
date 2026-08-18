@@ -8,17 +8,23 @@ Customer account onboarding is specified separately in
 [`ACCOUNT_ONBOARDING_PRD.md`](docs/prd/ACCOUNT_ONBOARDING_PRD.md). The intended flow is
 hybrid self-service B2B: a verified business-email user enters a hard-capped
 shared evaluation organisation, while business approval and a versioned quote
-gate dedicated service; organisation administrators can later invite
-colleagues. Public signup, recovery, and invitations are not implemented yet.
+gate dedicated service; the one company owner can invite colleagues. Public
+signup and recovery are not implemented. Owner-created invitations are
+implemented with manual one-time-link delivery; transactional email delivery
+is not.
 
 Invited-employee inference access is specified in
 [`WORKFORCE_AGENT_ACCESS_PRD.md`](docs/prd/WORKFORCE_AGENT_ACCESS_PRD.md). The target
 workflow uses self-hosted Casdoor for human authentication, a short-lived
-membership-bound Alzette token for inference, and a loopback compatibility
-proxy for agents that only accept a base URL and API-key field. Service-account
-keys remain the workload credential. Casdoor, employee invitations, human-agent
-tokens, the proxy, and per-employee inference attribution are not implemented
-yet.
+membership-bound Alzette token for inference, and eventually a loopback
+compatibility proxy for agents that only accept a base URL and API-key field.
+The local Compose stack now includes digest-pinned Casdoor, exact-email manual
+invitations, OAuth Authorization Code with PKCE, employee context discovery,
+10-minute `alz_u_` credentials, strict gateway dispatch, revocation, and
+per-employee request attribution and the memory-only compatibility proxy. A
+protected refresh-token client, transactional mail, remote TLS, and production
+recovery/offboarding evidence remain unimplemented. Service-account keys
+remain the unattended-workload credential.
 
 ## What the delivery slices mean
 
@@ -53,7 +59,7 @@ Internet targets must use HTTPS at both provisioning and request time. Plain HTT
 
 ## Run with Docker Compose
 
-The default Compose stack starts PostgreSQL, applies migrations once, and runs separate gateway, control/portal, public-site, and usage-worker processes from one image. The public process serves only an exact allow-list from `/app/public`; it receives no database URL or provider credential and redirects `/client` to the configured portal login. The stack never needs a real provider key merely to build, start, pass health checks, render an honest zero-usage portal, or run deterministic tests. Gateway and optional target probes resolve file-backed credential references such as `OPENROUTER_API_KEY_FILE=/run/secrets/openrouter_api_key` and `DEEPSEEK_API_KEY_FILE=/run/secrets/deepseek_api_key`; Compose mounts those paths from their corresponding host-side `*_SECRET_FILE` settings and never interpolates a provider key into its model. `/dev/null` is the inert default, and probes are globally disabled by default.
+The default Compose stack starts PostgreSQL, applies migrations once, bootstraps a digest-pinned loopback Casdoor instance, and runs separate gateway, control/portal, public-site, and usage-worker processes from one image. The public process serves only an exact allow-list from `/app/public`; it receives no database URL or provider credential and redirects `/client` to the configured portal login. The stack never needs a real provider key merely to build, start, pass health checks, render an honest zero-usage portal, or run deterministic tests. Gateway and optional target probes resolve file-backed credential references such as `OPENROUTER_API_KEY_FILE=/run/secrets/openrouter_api_key` and `DEEPSEEK_API_KEY_FILE=/run/secrets/deepseek_api_key`; Compose mounts those paths from their corresponding host-side `*_SECRET_FILE` settings and never interpolates a provider key into its model. `/dev/null` is the inert default, and probes are globally disabled by default.
 
 ```bash
 cp .env.example .env
@@ -65,6 +71,7 @@ docker compose ps
 - Client portal: <http://localhost:8081/login>
 - Public landing page: <http://localhost:8082/>
 - Public implementation docs: <http://localhost:8082/docs>
+- Local Casdoor: <http://casdoor.localhost:19084>
 - PostgreSQL: bound to `127.0.0.1:55432` for local integration tests
 
 For an explicitly trusted-LAN demo, set the published origins in `.env` rather
@@ -90,7 +97,18 @@ The portal deliberately separates identities:
 
 - a human portal password creates a bounded server-side session and is never an inference credential;
 - a service-account API key is revealed once, belongs in an application secret store, and is never reused as a portal password;
-- inference consumption is attributed to organisation/project/environment, route/model, and service account—not to the human who happened to view the dashboard.
+- an invited person authenticates with Casdoor and exchanges that identity proof
+  for a digest-only, alias-bounded `alz_u_` credential that expires within ten
+  minutes; the gateway never accepts the Casdoor token itself;
+- inference consumption records exactly one actor: either a service account or
+  the authenticated human membership and agent grant/token lineage.
+
+The local bootstrap creates `employee@example.test` (`employee` /
+`employee-demo-password`) only as an integration fixture. It grants no Alzette
+membership by itself: the owner must first create an invitation for that exact
+email in **Access → People**, choose the initial groups, and deliver the shown
+one-time link manually. These loopback credentials and the default Casdoor
+client secret must be replaced before any shared or remote deployment.
 
 A newly provisioned client therefore starts with **0 logical requests**. Signing in, browsing, exporting an empty period, or managing a key does not create inference consumption. Statistics appear only after an application calls the Alzette gateway; tests use isolated tenants and never seed fake customer activity into the live demo scope.
 
@@ -341,6 +359,52 @@ ALZETTE_PUBLIC_PORTAL_URL=http://localhost:8081/login \
 ```
 
 Production-like Compose uses separate `gateway`, `control`, `public`, and `worker` modes. `serve` combines gateway and control only for local development.
+
+## Employee login and desktop clients
+
+The employee client keeps OAuth and `alz_u_` credentials inside one
+`alzette-agent` process. It starts a random loopback proxy, gives the selected
+client only a process-scoped loopback capability, discovers the employee's
+current group-assigned models, remints the maximum-ten-minute inference
+credential when needed, and revokes the grant when the client exits. It does
+not modify the employee's normal Pi configuration or print a reusable
+credential.
+
+Build the desktop-side helper, then start Pi through it:
+
+```bash
+go build -o /tmp/alzette-agent ./cmd/alzette-agent
+
+# Reference Compose defaults:
+ALZETTE_AGENT_ALLOW_INSECURE_LOCAL=true \
+  /tmp/alzette-agent pi
+
+# This checkout currently publishes control on 19081:
+ALZETTE_AGENT_ALLOW_INSECURE_LOCAL=true \
+  /tmp/alzette-agent pi --control http://127.0.0.1:19081
+```
+
+The command opens Casdoor in the browser, selects the only eligible context
+automatically (or presents a numbered human-readable choice), registers an
+isolated `alzette-employee` provider for that Pi process, and starts Pi on the
+first assigned model. `alzette-agent login` performs the same browser login and
+lists safe context/model labels as a diagnostic, but intentionally stores no
+credential. `alzette-agent run -- <agent>` exposes the standard
+`OPENAI_BASE_URL` and process-scoped `OPENAI_API_KEY` variables for a bounded
+compatibility test with another OpenAI-compatible command-line client.
+
+Packaged Jan Desktop 0.8.4 and Goose Desktop 1.46.0 have also completed real
+local employee chats through that same authenticated loopback path. The helper
+now prints the exact one-session provider values required by each desktop app.
+See [the employee desktop guide](docs/EMPLOYEE_DESKTOP_CLIENTS.md) for the
+short Jan and Goose setup.
+
+This is a local demo client, not the remote-pilot artifact: the OAuth callback
+uses registered loopback port `43127`, browser login is repeated for each run,
+and the OAuth refresh token is memory-only. Durable keyring login, signed
+cross-platform packaging, canonical TLS, mail delivery, automatic native-
+client configuration, and broader version/OS evidence remain separate release
+gates.
 
 ## Verification
 

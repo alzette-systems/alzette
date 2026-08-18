@@ -15,14 +15,14 @@ import (
 )
 
 type resolvedOffer struct {
-	id, kind, profileID, modelID, modelAlias, modelSlug, modelName, releaseVersion string
-	profileCode, profileServiceMode, executionClass, sourceLabel, evidenceRef      string
-	minUnits, maxUnits                                                             int
-	targetID                                                                       sql.NullString
-	requestAllowance, tokenAllowance                                               sql.NullInt64
-	allowancePeriod                                                                sql.NullString
-	priceID, currency, billingPeriod, priceFinality                                sql.NullString
-	recurringAmount, setupAmount                                                   sql.NullInt64
+	id, code, kind, profileID, modelID, modelAlias, modelSlug, modelName, releaseVersion string
+	profileCode, profileServiceMode, executionClass, sourceLabel, evidenceRef            string
+	minUnits, maxUnits                                                                   int
+	targetID                                                                             sql.NullString
+	requestAllowance, tokenAllowance                                                     sql.NullInt64
+	allowancePeriod                                                                      sql.NullString
+	priceID, currency, billingPeriod, priceFinality                                      sql.NullString
+	recurringAmount, setupAmount                                                         sql.NullInt64
 }
 
 func (s *Store) GetEndpointConfiguration(ctx context.Context, session platform.PortalSession, id string) (endpoints.Configuration, error) {
@@ -36,14 +36,27 @@ func (s *Store) CreateEndpointConfiguration(ctx context.Context, session platfor
 	}
 	defer tx.Rollback()
 	if existing, err := getConfigurationByIdempotency(ctx, tx, session, digest); err == nil {
-		if existing.ModelSlug != input.ModelSlug || existing.OfferCode != input.OfferCode || existing.ProfileCode != input.ProfileCode || existing.EndpointAlias != input.EndpointAlias || existing.CapacityUnits != input.CapacityUnits || !workloadEqual(existing.Workload, input.Workload) {
+		matchesSelection := existing.OfferCode == input.OfferCode && existing.ProfileCode == input.ProfileCode && existing.EndpointAlias == input.EndpointAlias && existing.CapacityUnits == input.CapacityUnits
+		if input.ServiceMode != "" {
+			matchesSelection = offerKindMatchesServiceMode(existing.OfferKind, input.ServiceMode)
+		}
+		if existing.ModelSlug != input.ModelSlug || !matchesSelection || !workloadEqual(existing.Workload, input.Workload) {
 			return endpoints.Configuration{}, platform.ErrConflict
 		}
 		return existing, nil
 	} else if !errors.Is(err, platform.ErrNotFound) {
 		return endpoints.Configuration{}, err
 	}
-	offer, err := resolveEndpointOffer(ctx, tx, session.Current.OrganisationID, input.ModelSlug, input.OfferCode, input.ProfileCode)
+	var offer resolvedOffer
+	if input.ServiceMode != "" {
+		offer, err = resolveManagedEndpointOffer(ctx, tx, session.Current.OrganisationID, input.ModelSlug, input.ServiceMode)
+		input.OfferCode = offer.code
+		input.ProfileCode = offer.profileCode
+		input.EndpointAlias = offer.modelAlias
+		input.CapacityUnits = offer.minUnits
+	} else {
+		offer, err = resolveEndpointOffer(ctx, tx, session.Current.OrganisationID, input.ModelSlug, input.OfferCode, input.ProfileCode)
+	}
 	if err != nil {
 		return endpoints.Configuration{}, err
 	}
@@ -57,13 +70,14 @@ func (s *Store) CreateEndpointConfiguration(ctx context.Context, session platfor
 	_, err = tx.ExecContext(ctx, `INSERT INTO endpoint_configurations(
 		id,organisation_id,project_id,environment_id,offer_id,deployment_profile_id,routable_model_id,
 		endpoint_alias,capacity_units,workload_use_case,expected_context_tokens,expected_concurrency,
-		expected_requests_per_minute,latency_priority,expected_monthly_requests,requested_by_user_id,idempotency_key_hash)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+		expected_requests_per_minute,latency_priority,expected_monthly_requests,expected_user_count,
+		requested_by_user_id,idempotency_key_hash)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
 		id, session.Current.OrganisationID, session.Current.ProjectID, session.Current.EnvironmentID,
 		offer.id, offer.profileID, offer.modelID, input.EndpointAlias, input.CapacityUnits,
 		strings.TrimSpace(input.Workload.UseCase), input.Workload.ExpectedContextTokens, input.Workload.ExpectedConcurrency,
 		input.Workload.ExpectedRequestsPerMinute, input.Workload.LatencyPriority, input.Workload.ExpectedMonthlyRequests,
-		session.User.ID, digest[:])
+		input.Workload.ExpectedUserCount, session.User.ID, digest[:])
 	if err != nil {
 		return endpoints.Configuration{}, mapWriteError("create endpoint configuration", err)
 	}
@@ -99,7 +113,16 @@ func (s *Store) UpdateEndpointConfiguration(ctx context.Context, session platfor
 		units = *input.CapacityUnits
 	}
 	if input.Workload != nil {
-		workload = *input.Workload
+		patch := *input.Workload
+		if patch.ExpectedUserCount != nil {
+			workload = mergeRevisedWorkloadPatch(workload, patch)
+		} else {
+			// Legacy clients replace the legacy workload snapshot. They cannot
+			// see the new field, so an omitted team size must not erase it.
+			expectedUserCount := workload.ExpectedUserCount
+			workload = patch
+			workload.ExpectedUserCount = expectedUserCount
+		}
 		workload.UseCase = strings.TrimSpace(workload.UseCase)
 	}
 	var minUnits, maxUnits int
@@ -109,7 +132,7 @@ func (s *Store) UpdateEndpointConfiguration(ctx context.Context, session platfor
 	if units < minUnits || units > maxUnits {
 		return endpoints.Configuration{}, platform.ErrInvalid
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE endpoint_configurations SET capacity_units=$5,workload_use_case=$6,expected_context_tokens=$7,expected_concurrency=$8,expected_requests_per_minute=$9,latency_priority=$10,expected_monthly_requests=$11,updated_at=now() WHERE organisation_id=$1 AND project_id=$2 AND environment_id=$3 AND id=$4 AND status='draft'`, session.Current.OrganisationID, session.Current.ProjectID, session.Current.EnvironmentID, id, units, workload.UseCase, workload.ExpectedContextTokens, workload.ExpectedConcurrency, workload.ExpectedRequestsPerMinute, workload.LatencyPriority, workload.ExpectedMonthlyRequests); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE endpoint_configurations SET capacity_units=$5,workload_use_case=$6,expected_context_tokens=$7,expected_concurrency=$8,expected_requests_per_minute=$9,latency_priority=$10,expected_monthly_requests=$11,expected_user_count=$12,updated_at=now() WHERE organisation_id=$1 AND project_id=$2 AND environment_id=$3 AND id=$4 AND status='draft'`, session.Current.OrganisationID, session.Current.ProjectID, session.Current.EnvironmentID, id, units, workload.UseCase, workload.ExpectedContextTokens, workload.ExpectedConcurrency, workload.ExpectedRequestsPerMinute, workload.LatencyPriority, workload.ExpectedMonthlyRequests, workload.ExpectedUserCount); err != nil {
 		return endpoints.Configuration{}, mapWriteError("update endpoint configuration", err)
 	}
 	if err := insertActorAudit(ctx, tx, "human_user", session.User.ID, session.Current.OrganisationID, session.Current.ProjectID, "endpoint_configuration.updated", "succeeded", map[string]string{"configuration_id": id}); err != nil {
@@ -163,13 +186,14 @@ func (s *Store) SubmitEndpointConfiguration(ctx context.Context, session platfor
 		id,organisation_id,project_id,environment_id,request_kind,deployment_profile_id,
 		requested_capacity_units,status,requested_by_user_id,submitted_at,workload_use_case,
 		expected_context_tokens,expected_concurrency,expected_requests_per_minute,latency_priority,
-		expected_monthly_requests,idempotency_key_hash,idempotency_request_hash)
-		VALUES($1,$2,$3,$4,'new_endpoint',$5,$6,'submitted',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		expected_monthly_requests,expected_user_count,idempotency_key_hash,idempotency_request_hash)
+		VALUES($1,$2,$3,$4,'new_endpoint',$5,$6,'submitted',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
 		requestID, session.Current.OrganisationID, session.Current.ProjectID, session.Current.EnvironmentID,
 		offer.profileID, configuration.CapacityUnits, session.User.ID, now, configuration.Workload.UseCase,
 		configuration.Workload.ExpectedContextTokens, configuration.Workload.ExpectedConcurrency,
 		configuration.Workload.ExpectedRequestsPerMinute, configuration.Workload.LatencyPriority,
-		configuration.Workload.ExpectedMonthlyRequests, digest[:], requestDigest[:]); err != nil {
+		configuration.Workload.ExpectedMonthlyRequests, configuration.Workload.ExpectedUserCount,
+		digest[:], requestDigest[:]); err != nil {
 		return endpoints.Endpoint{}, mapWriteError("submit deployment request", err)
 	}
 	endpointID, err := ids.New("end")
@@ -406,12 +430,33 @@ func endpointRail(kind, state string) endpoints.Rail {
 }
 
 func resolveEndpointOffer(ctx context.Context, tx *sql.Tx, organisationID, modelSlug, offerCode, profileCode string) (resolvedOffer, error) {
-	var result resolvedOffer
-	err := tx.QueryRowContext(ctx, `SELECT o.id,o.offer_kind,o.deployment_profile_id,o.routable_model_id,m.alias,cm.slug,cm.name,v.version,p.code,p.service_mode,p.execution_class,p.min_capacity_units,p.max_capacity_units,o.target_id,o.request_allowance,o.token_allowance,o.allowance_period,o.source_label,o.evidence_ref,o.profile_price_id,pr.currency,pr.billing_period,pr.recurring_unit_amount_minor,pr.setup_amount_minor,pr.finality FROM endpoint_offers o JOIN deployment_profiles p ON p.id=o.deployment_profile_id JOIN catalogue_model_versions v ON v.id=p.catalogue_model_version_id JOIN catalogue_models cm ON cm.id=v.catalogue_model_id JOIN models m ON m.id=o.routable_model_id JOIN organisations org ON org.id=$1 LEFT JOIN deployment_profile_prices pr ON pr.id=o.profile_price_id WHERE cm.slug=$2 AND o.code=$3 AND p.code=$4 AND o.status='published' AND ((org.account_kind='evaluation' AND o.eligible_evaluation) OR (org.account_kind='customer' AND o.eligible_customer)) FOR SHARE OF o,p`, organisationID, modelSlug, offerCode, profileCode).Scan(&result.id, &result.kind, &result.profileID, &result.modelID, &result.modelAlias, &result.modelSlug, &result.modelName, &result.releaseVersion, &result.profileCode, &result.profileServiceMode, &result.executionClass, &result.minUnits, &result.maxUnits, &result.targetID, &result.requestAllowance, &result.tokenAllowance, &result.allowancePeriod, &result.sourceLabel, &result.evidenceRef, &result.priceID, &result.currency, &result.billingPeriod, &result.recurringAmount, &result.setupAmount, &result.priceFinality)
+	row := tx.QueryRowContext(ctx, resolvedOfferSelect+` WHERE cm.slug=$2 AND o.code=$3 AND p.code=$4 AND o.status='published' AND ((org.account_kind='evaluation' AND o.eligible_evaluation) OR (org.account_kind='customer' AND o.eligible_customer)) FOR SHARE OF o,p`, organisationID, modelSlug, offerCode, profileCode)
+	result, err := scanResolvedOffer(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return resolvedOffer{}, platform.ErrNotFound
 	}
 	return result, err
+}
+
+func resolveManagedEndpointOffer(ctx context.Context, tx *sql.Tx, organisationID, modelSlug, serviceMode string) (resolvedOffer, error) {
+	row := tx.QueryRowContext(ctx, resolvedOfferSelect+` LEFT JOIN inference_targets t ON t.id=o.target_id WHERE cm.slug=$2 AND o.status='published' AND p.status='quotable' AND ((org.account_kind='evaluation' AND o.eligible_evaluation) OR (org.account_kind='customer' AND o.eligible_customer)) AND (($3='shared' AND o.offer_kind IN ('shared_evaluation','shared_subscription') AND COALESCE(t.enabled,false)) OR ($3='dedicated' AND o.offer_kind='dedicated_quote')) ORDER BY CASE o.offer_kind WHEN 'shared_evaluation' THEN 0 WHEN 'shared_subscription' THEN 1 ELSE 2 END,o.code LIMIT 1 FOR SHARE OF o,p`, organisationID, modelSlug, serviceMode)
+	result, err := scanResolvedOffer(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return resolvedOffer{}, platform.ErrNotFound
+	}
+	return result, err
+}
+
+const resolvedOfferSelect = `SELECT o.id,o.code,o.offer_kind,o.deployment_profile_id,o.routable_model_id,m.alias,cm.slug,cm.name,v.version,p.code,p.service_mode,p.execution_class,p.min_capacity_units,p.max_capacity_units,o.target_id,o.request_allowance,o.token_allowance,o.allowance_period,o.source_label,o.evidence_ref,o.profile_price_id,pr.currency,pr.billing_period,pr.recurring_unit_amount_minor,pr.setup_amount_minor,pr.finality FROM endpoint_offers o JOIN deployment_profiles p ON p.id=o.deployment_profile_id JOIN catalogue_model_versions v ON v.id=p.catalogue_model_version_id JOIN catalogue_models cm ON cm.id=v.catalogue_model_id JOIN models m ON m.id=o.routable_model_id JOIN organisations org ON org.id=$1 LEFT JOIN deployment_profile_prices pr ON pr.id=o.profile_price_id`
+
+func scanResolvedOffer(row rowScanner) (resolvedOffer, error) {
+	var result resolvedOffer
+	err := row.Scan(&result.id, &result.code, &result.kind, &result.profileID, &result.modelID, &result.modelAlias, &result.modelSlug, &result.modelName, &result.releaseVersion, &result.profileCode, &result.profileServiceMode, &result.executionClass, &result.minUnits, &result.maxUnits, &result.targetID, &result.requestAllowance, &result.tokenAllowance, &result.allowancePeriod, &result.sourceLabel, &result.evidenceRef, &result.priceID, &result.currency, &result.billingPeriod, &result.recurringAmount, &result.setupAmount, &result.priceFinality)
+	return result, err
+}
+
+func offerKindMatchesServiceMode(kind, mode string) bool {
+	return (mode == "shared" && (kind == "shared_evaluation" || kind == "shared_subscription")) || (mode == "dedicated" && kind == "dedicated_quote")
 }
 
 func getConfiguration(ctx context.Context, query endpointQueryer, session platform.PortalSession, id string) (endpoints.Configuration, error) {
@@ -432,20 +477,24 @@ func getConfigurationByIdempotency(ctx context.Context, query endpointQueryer, s
 	return result, err
 }
 
-const configurationSelect = `SELECT c.id,cm.slug,cm.name,v.version,o.code,o.offer_kind,p.code,c.endpoint_alias,c.capacity_units,c.workload_use_case,c.expected_context_tokens,c.expected_concurrency,c.expected_requests_per_minute,c.latency_priority,c.expected_monthly_requests,c.status,c.deployment_request_id,c.created_at,c.submitted_at FROM endpoint_configurations c JOIN endpoint_offers o ON o.id=c.offer_id JOIN deployment_profiles p ON p.id=c.deployment_profile_id JOIN catalogue_model_versions v ON v.id=p.catalogue_model_version_id JOIN catalogue_models cm ON cm.id=v.catalogue_model_id`
+const configurationSelect = `SELECT c.id,cm.slug,cm.name,v.version,o.code,o.offer_kind,p.code,c.endpoint_alias,c.capacity_units,c.workload_use_case,c.expected_context_tokens,c.expected_concurrency,c.expected_requests_per_minute,c.latency_priority,c.expected_monthly_requests,c.expected_user_count,c.status,c.deployment_request_id,c.created_at,c.submitted_at FROM endpoint_configurations c JOIN endpoint_offers o ON o.id=c.offer_id JOIN deployment_profiles p ON p.id=c.deployment_profile_id JOIN catalogue_model_versions v ON v.id=p.catalogue_model_version_id JOIN catalogue_models cm ON cm.id=v.catalogue_model_id`
 
 func scanConfiguration(row rowScanner) (endpoints.Configuration, error) {
 	var result endpoints.Configuration
-	var contextTokens, monthly sql.NullInt64
+	var contextTokens, monthly, userCount sql.NullInt64
 	var concurrency, rpm sql.NullInt64
 	var latency, requestID sql.NullString
 	var submitted sql.NullTime
-	err := row.Scan(&result.ID, &result.ModelSlug, &result.ModelName, &result.ReleaseVersion, &result.OfferCode, &result.OfferKind, &result.ProfileCode, &result.EndpointAlias, &result.CapacityUnits, &result.Workload.UseCase, &contextTokens, &concurrency, &rpm, &latency, &monthly, &result.Status, &requestID, &result.CreatedAt, &submitted)
+	err := row.Scan(&result.ID, &result.ModelSlug, &result.ModelName, &result.ReleaseVersion, &result.OfferCode, &result.OfferKind, &result.ProfileCode, &result.EndpointAlias, &result.CapacityUnits, &result.Workload.UseCase, &contextTokens, &concurrency, &rpm, &latency, &monthly, &userCount, &result.Status, &requestID, &result.CreatedAt, &submitted)
 	if err != nil {
 		return endpoints.Configuration{}, err
 	}
 	result.Workload.ExpectedContextTokens = nullInt64Pointer(contextTokens)
 	result.Workload.ExpectedMonthlyRequests = nullInt64Pointer(monthly)
+	if userCount.Valid {
+		value := int(userCount.Int64)
+		result.Workload.ExpectedUserCount = &value
+	}
 	if concurrency.Valid {
 		value := int(concurrency.Int64)
 		result.Workload.ExpectedConcurrency = &value
@@ -464,6 +513,29 @@ func workloadEqual(a, b endpoints.Workload) bool {
 	left, _ := json.Marshal(a)
 	right, _ := json.Marshal(b)
 	return string(left) == string(right)
+}
+
+func mergeRevisedWorkloadPatch(current, patch endpoints.Workload) endpoints.Workload {
+	if useCase := strings.TrimSpace(patch.UseCase); useCase != "" {
+		current.UseCase = useCase
+	}
+	if patch.ExpectedContextTokens != nil {
+		current.ExpectedContextTokens = patch.ExpectedContextTokens
+	}
+	if patch.ExpectedConcurrency != nil {
+		current.ExpectedConcurrency = patch.ExpectedConcurrency
+	}
+	if patch.ExpectedRequestsPerMinute != nil {
+		current.ExpectedRequestsPerMinute = patch.ExpectedRequestsPerMinute
+	}
+	if patch.LatencyPriority != nil {
+		current.LatencyPriority = patch.LatencyPriority
+	}
+	if patch.ExpectedMonthlyRequests != nil {
+		current.ExpectedMonthlyRequests = patch.ExpectedMonthlyRequests
+	}
+	current.ExpectedUserCount = patch.ExpectedUserCount
+	return current
 }
 
 func deploymentRequestDigest(kind, targetID string, units int, workload endpoints.Workload) [32]byte {

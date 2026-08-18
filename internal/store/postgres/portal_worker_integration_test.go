@@ -10,6 +10,7 @@ import (
 	"alzette/internal/credentials"
 	"alzette/internal/humanauth"
 	"alzette/internal/platform"
+	"alzette/internal/workforce"
 )
 
 func TestPostgresHumanPasswordRotationRevokesSessionsAndPortalKeysOverlap(t *testing.T) {
@@ -26,9 +27,25 @@ func TestPostgresHumanPasswordRotationRevokesSessionsAndPortalKeysOverlap(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	user, err := fixture.store.ProvisionHuman(ctx, platform.HumanUserSpec{Username: "portal-admin", DisplayName: "Portal Admin", PasswordHash: oldHash, OrganisationSlug: "portal-tenant", ProjectSlug: "application", EnvironmentSlug: "production", Role: platform.PortalRoleProjectAdmin})
+	user, err := fixture.store.ProvisionHuman(ctx, platform.HumanUserSpec{Username: "portal-admin", DisplayName: "Portal Owner", PasswordHash: oldHash, OrganisationSlug: "portal-tenant", ProjectSlug: "application", EnvironmentSlug: "production", Role: platform.PortalRoleViewer})
 	if err != nil || !user.Created {
 		t.Fatalf("provision human: %v", err)
+	}
+	owner, err := workforce.New(fixture.store).AssignInitialOwner(ctx, workforce.InitialOwnerSpec{OrganisationSlug: "portal-tenant", Username: "portal-admin", EvidenceRef: "test/application-owner"})
+	if err != nil || !owner.Created {
+		t.Fatalf("assign explicit owner: result=%#v err=%v", owner, err)
+	}
+	employee, err := fixture.store.ProvisionHuman(ctx, platform.HumanUserSpec{Username: "portal-employee", DisplayName: "Legacy Admin Employee", PasswordHash: oldHash, OrganisationSlug: "portal-tenant", ProjectSlug: "application", EnvironmentSlug: "production", Role: platform.PortalRoleOrgAdmin})
+	if err != nil || !employee.Created {
+		t.Fatalf("provision employee: %v", err)
+	}
+	employeeDigest := humanauth.Digest("credential-neutral-employee-session")
+	employeeSession, err := fixture.store.CreatePortalSession(ctx, "portal-employee", oldPassword, employeeDigest, now.Add(time.Hour), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.store.CreatePortalServiceAccount(ctx, employeeSession, "legacy admin cannot create"); !errors.Is(err, platform.ErrForbidden) {
+		t.Fatalf("non-owner legacy org_admin created a service account: %v", err)
 	}
 	other, err := fixture.store.Provision(ctx, databaseSpec("Portal Tenant B", "portal-tenant-b"))
 	if err != nil {
@@ -154,17 +171,23 @@ func TestPostgresHumanPasswordRotationRevokesSessionsAndPortalKeysOverlap(t *tes
 	if activeSessionRevocations < 1 {
 		t.Fatal("password rotation did not durably revoke sessions")
 	}
-	if err := fixture.store.DisableHuman(ctx, "portal-admin"); err != nil {
+	if err := fixture.store.DisableHuman(ctx, "portal-admin"); !errors.Is(err, platform.ErrConflict) {
+		t.Fatalf("current owner disable error=%v", err)
+	}
+	if _, err := fixture.store.AuthenticatePortalSession(ctx, newDigest, now.Add(3*time.Minute)); err != nil {
+		t.Fatal("rejected owner disable revoked the owner session")
+	}
+	if err := fixture.store.DisableHuman(ctx, "portal-employee"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.store.AuthenticatePortalSession(ctx, newDigest, now.Add(3*time.Minute)); !errors.Is(err, platform.ErrUnauthenticated) {
-		t.Fatal("disabled user retained an active portal session")
+	if _, err := fixture.store.AuthenticatePortalSession(ctx, employeeDigest, now.Add(3*time.Minute)); !errors.Is(err, platform.ErrUnauthenticated) {
+		t.Fatal("disabled employee retained an active portal session")
 	}
-	if _, err := fixture.store.ProvisionHuman(ctx, platform.HumanUserSpec{Username: "portal-admin", DisplayName: "Portal Admin", PasswordHash: newHash, OrganisationSlug: "portal-tenant", ProjectSlug: "application", EnvironmentSlug: "production", Role: platform.PortalRoleProjectAdmin}); !errors.Is(err, platform.ErrConflict) {
+	if _, err := fixture.store.ProvisionHuman(ctx, platform.HumanUserSpec{Username: "portal-employee", DisplayName: "Legacy Admin Employee", PasswordHash: newHash, OrganisationSlug: "portal-tenant", ProjectSlug: "application", EnvironmentSlug: "production", Role: platform.PortalRoleOrgAdmin}); !errors.Is(err, platform.ErrConflict) {
 		t.Fatalf("disabled user re-provision did not fail explicitly: %v", err)
 	}
 	var enabled bool
-	if err := fixture.db.QueryRow(`SELECT enabled FROM human_users WHERE id=$1`, user.UserID).Scan(&enabled); err != nil || enabled {
+	if err := fixture.db.QueryRow(`SELECT enabled FROM human_users WHERE id=$1`, employee.UserID).Scan(&enabled); err != nil || enabled {
 		t.Fatal("failed re-provision changed disabled-user state")
 	}
 }
@@ -282,7 +305,18 @@ func TestPostgresPortalMigrationIntegrityGuards(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session := portalSessionFor(result, "Guard Tenant", "guard-tenant")
+	hash, err := humanauth.HashPassword("guard-owner-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	human, err := fixture.store.ProvisionHuman(ctx, platform.HumanUserSpec{Username: "guard-owner", DisplayName: "Guard Owner", PasswordHash: hash, OrganisationSlug: "guard-tenant", ProjectSlug: "application", EnvironmentSlug: "production", Role: platform.PortalRoleViewer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := workforce.New(fixture.store).AssignInitialOwner(ctx, workforce.InitialOwnerSpec{OrganisationSlug: "guard-tenant", Username: "guard-owner", EvidenceRef: "test/guard-owner"}); err != nil {
+		t.Fatal(err)
+	}
+	session := workforceSession(result, human, "Guard Tenant", "guard-tenant")
 	account, err := fixture.store.CreatePortalServiceAccount(ctx, session, "second account")
 	if err != nil {
 		t.Fatal(err)

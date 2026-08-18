@@ -16,6 +16,7 @@ import (
 	"alzette/internal/humanauth"
 	"alzette/internal/platform"
 	"alzette/internal/store/memory"
+	"alzette/internal/workforce"
 )
 
 const (
@@ -123,7 +124,7 @@ func newTestApp(t *testing.T, store *portalStub, secure bool) *App {
 	t.Helper()
 	directory := t.TempDir()
 	writePortalAssets(t, directory)
-	app, err := New(Config{Store: store, PortalStore: store, StaticDirectory: directory, CookieSecure: secure, SessionTTL: time.Hour, Clock: func() time.Time { return store.now }, GenerateSessionToken: func() (string, error) { return testSessionToken, nil }, GenerateCSRFToken: func() (string, error) { return testCSRFToken, nil }, PublicGatewayURL: "http://192.168.178.167:19080", AllowInsecurePublicGateway: true})
+	app, err := New(Config{Store: store, PortalStore: store, StaticDirectory: directory, CookieSecure: secure, SessionTTL: time.Hour, Clock: func() time.Time { return store.now }, GenerateSessionToken: func() (string, error) { return testSessionToken, nil }, GenerateCSRFToken: func() (string, error) { return testCSRFToken, nil }, PublicGatewayURL: "http://192.168.178.167:19080", AllowInsecurePublicGateway: true, Workforce: workforce.New(&workforceStub{access: ownerAccessFixture()})})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,6 +490,7 @@ func TestPortalRootCSSAndPasswordReauthentication(t *testing.T) {
 
 func TestPortalMeAccessAndStrictKeyContracts(t *testing.T) {
 	store := newPortalStub(time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC))
+	store.session.Current.Role = platform.PortalRoleViewer
 	app := newTestApp(t, store, true)
 	me := httptest.NewRecorder()
 	app.ServeHTTP(me, authenticatedRequest(http.MethodGet, "/api/portal/me", ""))
@@ -510,10 +512,16 @@ func TestPortalMeAccessAndStrictKeyContracts(t *testing.T) {
 	if err := json.Unmarshal(access.Body.Bytes(), &accessBody); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"schema", "context", "can_manage", "permissions", "role", "allowed_scopes", "key_policy", "service_accounts"} {
+	for _, key := range []string{"schema", "context", "can_manage", "permissions", "allowed_scopes", "key_policy", "service_accounts"} {
 		if _, ok := accessBody[key]; !ok {
 			t.Fatalf("access contract missing %s", key)
 		}
+	}
+	if accessBody["can_manage"] != true {
+		t.Fatal("explicit company owner was denied application access because of a legacy viewer role")
+	}
+	if _, exists := accessBody["role"]; exists {
+		t.Fatal("application access response exposed the retired role authority field")
 	}
 	expires := store.now.Add(24 * time.Hour).Format(time.RFC3339)
 	issueBody := `{"service_account_id":"sa_a","name":"production","scopes":["inference:write"],"expires_at":"` + expires + `"}`

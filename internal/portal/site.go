@@ -23,9 +23,11 @@ import (
 	"alzette/internal/billing"
 	"alzette/internal/catalogue"
 	"alzette/internal/endpoints"
+	"alzette/internal/federation"
 	"alzette/internal/humanauth"
 	"alzette/internal/ids"
 	"alzette/internal/platform"
+	"alzette/internal/workforce"
 )
 
 const (
@@ -53,6 +55,8 @@ type Config struct {
 	Catalogue                  *catalogue.Service
 	Endpoints                  *endpoints.Service
 	Billing                    *billing.Service
+	Workforce                  *workforce.Service
+	OIDC                       federation.Provider
 }
 
 type asset struct {
@@ -78,6 +82,9 @@ type App struct {
 	endpoints            *endpoints.Service
 	billing              *billing.Service
 	overview             *overviewRenderer
+	workforce            *workforce.Service
+	accessRenderer       *accessRenderer
+	oidc                 federation.Provider
 }
 
 type reauthenticationStore interface {
@@ -129,15 +136,36 @@ func New(config Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse portal overview template: %w", err)
 	}
+	accessRenderer, err := newAccessRenderer()
+	if err != nil {
+		return nil, fmt.Errorf("parse portal access template: %w", err)
+	}
+	csp, err := portalContentSecurityPolicy(config.OIDC)
+	if err != nil {
+		return nil, err
+	}
 	return &App{
 		store: config.Store, portalStore: config.PortalStore, assets: assets,
 		cookieSecure: config.CookieSecure, sessionTTL: config.SessionTTL, clock: config.Clock,
 		generateSessionToken: config.GenerateSessionToken, generateCSRFToken: config.GenerateCSRFToken, newID: config.NewID,
 		publicGatewayURL: publicBase, chatCompletionsURL: chatURL,
-		catalogue: config.Catalogue, endpoints: config.Endpoints, billing: config.Billing,
-		overview: overview,
-		csp:      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+		catalogue: config.Catalogue, endpoints: config.Endpoints, billing: config.Billing, workforce: config.Workforce,
+		overview: overview, accessRenderer: accessRenderer, oidc: config.OIDC,
+		csp: csp,
 	}, nil
+}
+
+func portalContentSecurityPolicy(provider federation.Provider) (string, error) {
+	formAction := "'self'"
+	if provider != nil {
+		issuer, err := url.Parse(strings.TrimSpace(provider.Issuer()))
+		if err != nil || issuer.Scheme == "" || issuer.Host == "" || issuer.User != nil || issuer.RawQuery != "" || issuer.Fragment != "" || (issuer.Path != "" && issuer.Path != "/") {
+			return "", errors.New("workforce OIDC issuer must be an exact origin")
+		}
+		issuer.Path = ""
+		formAction += " " + strings.TrimRight(issuer.String(), "/")
+	}
+	return "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action " + formAction + "; frame-ancestors 'none'", nil
 }
 
 func validatePublicGatewayURL(value string, allowInsecure bool) (string, string, error) {
@@ -204,6 +232,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == "/":
 		http.Redirect(w, r, "/app/overview", http.StatusSeeOther)
+	case r.URL.Path == "/accept-invite":
+		a.invitationEntry(w, r)
+	case r.URL.Path == "/login/oidc/callback":
+		a.oidcCallback(w, r)
 	case (r.URL.Path == "/login" || r.URL.Path == "/login.html") && r.Method == http.MethodGet:
 		a.serveAsset(w, r, "login.html")
 	case r.URL.Path == "/login" && r.Method == http.MethodPost:
@@ -216,6 +248,8 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.serveAsset(w, r, strings.TrimPrefix(r.URL.Path, "/app/"))
 	case r.URL.Path == "/app/overview":
 		a.serveOverview(w, r)
+	case r.URL.Path == "/app/access" || r.URL.Path == "/app/access/people" || r.URL.Path == "/app/access/groups" || r.URL.Path == "/app/access/groups/new" || strings.HasPrefix(r.URL.Path, "/app/access/groups/") || strings.HasPrefix(r.URL.Path, "/app/access/invitations"):
+		a.serveAccessWorkspace(w, r)
 	case r.URL.Path == "/app" || r.URL.Path == "/app/" || strings.HasPrefix(r.URL.Path, "/app/"):
 		a.servePortal(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/portal/"):
@@ -758,7 +792,7 @@ func (a *App) me(w http.ResponseWriter, r *http.Request, session platform.Portal
 		csrf = cookie.Value
 	}
 	permissions := []string{"usage:read", "routes:read", "access:read"}
-	if session.Current.CanManageAccess() {
+	if canManage, _ := a.canManageApplicationAccess(r.Context(), session); canManage {
 		permissions = append(permissions, "access:manage")
 	}
 	response := map[string]interface{}{
@@ -794,22 +828,52 @@ func membershipViews(values []platform.PortalMembership) []map[string]interface{
 }
 
 func (a *App) access(w http.ResponseWriter, r *http.Request, session platform.PortalSession) {
+	canManage, err := a.canManageApplicationAccess(r.Context(), session)
+	if err != nil {
+		api.WriteError(w, http.StatusServiceUnavailable, "access_authority_unavailable", "api_error", "application access authority is temporarily unavailable", "")
+		return
+	}
 	accounts, err := a.portalStore.ListPortalAccess(r.Context(), session)
 	if err != nil {
 		api.WriteError(w, http.StatusServiceUnavailable, "access_unavailable", "api_error", "access metadata is temporarily unavailable", "")
 		return
 	}
 	api.WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"schema": "alzette.portal.access.v1", "context": session.Current, "can_manage": session.Current.CanManageAccess(),
+		"schema": "alzette.portal.access.v1", "context": session.Current, "can_manage": canManage,
 		"service_accounts": accounts,
-		"role":             map[bool]string{true: "admin", false: session.Current.Role}[session.Current.CanManageAccess()],
-		"permissions":      map[string]bool{"can_manage_access": session.Current.CanManageAccess()},
+		"permissions":      map[string]bool{"can_manage_access": canManage},
 		"allowed_scopes":   []string{platform.ScopeInferenceWrite, platform.ScopeRoutesRead, platform.ScopeUsageRead},
 		"key_policy":       map[string]interface{}{"name_required": true, "expiry_required": true, "minimum_ttl_seconds": 3600, "maximum_ttl_seconds": 31536000, "default_expiry_days": 90, "allowed_expiry_days": []int{30, 90, 365}, "allowed_scopes": []string{platform.ScopeInferenceWrite, platform.ScopeRoutesRead, platform.ScopeUsageRead}, "rotation_overlap": "old key remains active until explicit revoke"},
 	})
 }
 
+func (a *App) canManageApplicationAccess(ctx context.Context, session platform.PortalSession) (bool, error) {
+	if a.workforce == nil {
+		return false, platform.ErrUnavailable
+	}
+	access, err := a.workforce.Access(ctx, session)
+	if err != nil {
+		return false, err
+	}
+	return access.Configured && access.Relationship == workforce.RelationshipOwner && access.CanManage, nil
+}
+
+func (a *App) requireApplicationOwner(ctx context.Context, session platform.PortalSession) error {
+	allowed, err := a.canManageApplicationAccess(ctx, session)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return platform.ErrForbidden
+	}
+	return nil
+}
+
 func (a *App) createServiceAccount(w http.ResponseWriter, r *http.Request, session platform.PortalSession) {
+	if err := a.requireApplicationOwner(r.Context(), session); err != nil {
+		a.writeMutationError(w, err, "service account")
+		return
+	}
 	var input struct {
 		Name string `json:"name"`
 	}
@@ -825,6 +889,10 @@ func (a *App) createServiceAccount(w http.ResponseWriter, r *http.Request, sessi
 }
 
 func (a *App) issueKey(w http.ResponseWriter, r *http.Request, session platform.PortalSession, rotation bool) {
+	if err := a.requireApplicationOwner(r.Context(), session); err != nil {
+		a.writeMutationError(w, err, "API key")
+		return
+	}
 	var input struct {
 		ServiceAccountID  string     `json:"service_account_id"`
 		Name              string     `json:"name"`
@@ -852,6 +920,10 @@ func (a *App) issueKey(w http.ResponseWriter, r *http.Request, session platform.
 }
 
 func (a *App) revokeKey(w http.ResponseWriter, r *http.Request, session platform.PortalSession) {
+	if err := a.requireApplicationOwner(r.Context(), session); err != nil {
+		a.writeMutationError(w, err, "API key")
+		return
+	}
 	var input struct {
 		Prefix string `json:"prefix"`
 	}
@@ -898,7 +970,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, destination interface{})
 func (a *App) writeMutationError(w http.ResponseWriter, err error, resource string) {
 	switch {
 	case errors.Is(err, platform.ErrForbidden):
-		api.WriteError(w, http.StatusForbidden, "insufficient_role", "permission_error", "permission denied", "")
+		api.WriteError(w, http.StatusForbidden, "owner_required", "permission_error", "the current company owner is required", "")
 	case errors.Is(err, platform.ErrInvalid):
 		api.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid_request_error", resource+" request is invalid", "")
 	case errors.Is(err, platform.ErrNotFound):

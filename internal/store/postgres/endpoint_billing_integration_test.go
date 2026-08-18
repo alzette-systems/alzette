@@ -164,6 +164,142 @@ func TestPostgresCatalogueEndpointAndBillingVerticalSlice(t *testing.T) {
 	}
 }
 
+func TestPostgresEndpointTeamSizeRoundTripIdempotencyAndImmutability(t *testing.T) {
+	fixture := newDatabaseFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Second)
+	provisioned, err := fixture.store.Provision(ctx, databaseSpec("Team Size Tenant", "team-size-tenant"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := endpointAdminSession(t, fixture, provisioned, "Team Size Tenant", "team-size-tenant", "team-size-admin", now)
+	if _, err := fixture.store.SeedCatalogue(ctx, endpointSeedSpec()); err != nil {
+		t.Fatal(err)
+	}
+	service, err := endpoints.New(fixture.store, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	contextTokens := int64(32768)
+	concurrency := 7
+	rpm := 60
+	latency := "balanced"
+	monthly := int64(12000)
+	users := 25
+	input := endpoints.CreateInput{
+		ModelSlug: "safe-chat", ServiceMode: "shared",
+		Workload: endpoints.Workload{
+			UseCase:                   "Team workload",
+			ExpectedContextTokens:     &contextTokens,
+			ExpectedConcurrency:       &concurrency,
+			ExpectedRequestsPerMinute: &rpm,
+			LatencyPriority:           &latency,
+			ExpectedMonthlyRequests:   &monthly,
+			ExpectedUserCount:         &users,
+		},
+	}
+	configuration, err := service.Create(ctx, session, input, "team-size-create-0001")
+	if err != nil {
+		t.Fatalf("create configuration: %v", err)
+	}
+	if configuration.Workload.ExpectedUserCount == nil || *configuration.Workload.ExpectedUserCount != users || configuration.OfferCode != "free-evaluation" || configuration.ProfileCode != "shared-compatible" || configuration.EndpointAlias != "safe-chat" || configuration.CapacityUnits != 1 {
+		t.Fatalf("configuration team size=%v", configuration.Workload.ExpectedUserCount)
+	}
+	replayed, err := service.Create(ctx, session, input, "team-size-create-0001")
+	if err != nil || replayed.ID != configuration.ID {
+		t.Fatalf("identical create retry=%#v err=%v", replayed, err)
+	}
+	changedInput := input
+	changedUsers := users + 1
+	changedInput.Workload.ExpectedUserCount = &changedUsers
+	if _, err := service.Create(ctx, session, changedInput, "team-size-create-0001"); !errors.Is(err, platform.ErrConflict) {
+		t.Fatalf("changed team size reused create idempotency key: %v", err)
+	}
+	for _, invalid := range []int{0, 10001} {
+		if _, err := fixture.db.Exec(`UPDATE endpoint_configurations SET expected_user_count=$2 WHERE id=$1`, configuration.ID, invalid); err == nil {
+			t.Fatal("database accepted out-of-range endpoint team size")
+		}
+	}
+	maximumUsers := 10000
+	configuration, err = service.Update(ctx, session, configuration.ID, endpoints.PatchInput{
+		Workload: &endpoints.Workload{ExpectedUserCount: &maximumUsers},
+	}, "team-size-update-0001")
+	if err != nil {
+		t.Fatalf("team-size-only patch: %v", err)
+	}
+	if configuration.Workload.ExpectedUserCount == nil || *configuration.Workload.ExpectedUserCount != maximumUsers ||
+		configuration.Workload.UseCase != input.Workload.UseCase ||
+		configuration.Workload.ExpectedContextTokens == nil || *configuration.Workload.ExpectedContextTokens != contextTokens ||
+		configuration.Workload.ExpectedConcurrency == nil || *configuration.Workload.ExpectedConcurrency != concurrency ||
+		configuration.Workload.ExpectedRequestsPerMinute == nil || *configuration.Workload.ExpectedRequestsPerMinute != rpm ||
+		configuration.Workload.LatencyPriority == nil || *configuration.Workload.LatencyPriority != latency ||
+		configuration.Workload.ExpectedMonthlyRequests == nil || *configuration.Workload.ExpectedMonthlyRequests != monthly {
+		t.Fatalf("team-size-only patch lost workload state: %#v", configuration.Workload)
+	}
+	legacyUseCase := "Legacy client revision"
+	legacyContext := int64(49152)
+	legacyConcurrency := 9
+	legacyRPM := 75
+	legacyLatency := "throughput"
+	legacyMonthly := int64(18000)
+	configuration, err = service.Update(ctx, session, configuration.ID, endpoints.PatchInput{
+		Workload: &endpoints.Workload{
+			UseCase:                   legacyUseCase,
+			ExpectedContextTokens:     &legacyContext,
+			ExpectedConcurrency:       &legacyConcurrency,
+			ExpectedRequestsPerMinute: &legacyRPM,
+			LatencyPriority:           &legacyLatency,
+			ExpectedMonthlyRequests:   &legacyMonthly,
+		},
+	}, "legacy-workload-update-0001")
+	if err != nil {
+		t.Fatalf("legacy workload patch: %v", err)
+	}
+	if configuration.Workload.ExpectedUserCount == nil || *configuration.Workload.ExpectedUserCount != maximumUsers {
+		t.Fatal("legacy client patch cleared expected_user_count")
+	}
+	if configuration.Workload.UseCase != legacyUseCase || configuration.Workload.ExpectedContextTokens == nil || *configuration.Workload.ExpectedContextTokens != legacyContext || configuration.Workload.ExpectedConcurrency == nil || *configuration.Workload.ExpectedConcurrency != legacyConcurrency || configuration.Workload.ExpectedRequestsPerMinute == nil || *configuration.Workload.ExpectedRequestsPerMinute != legacyRPM || configuration.Workload.LatencyPriority == nil || *configuration.Workload.LatencyPriority != legacyLatency || configuration.Workload.ExpectedMonthlyRequests == nil || *configuration.Workload.ExpectedMonthlyRequests != legacyMonthly {
+		t.Fatalf("legacy workload fields did not round trip: %#v", configuration.Workload)
+	}
+	endpoint, err := service.Submit(ctx, session, configuration.ID, "team-size-submit-0001")
+	if err != nil {
+		t.Fatalf("submit endpoint: %v", err)
+	}
+	request, err := service.Request(ctx, session, *endpoint.DeploymentRequestID)
+	if err != nil {
+		t.Fatalf("read deployment request: %v", err)
+	}
+	if request.Workload.ExpectedUserCount == nil || *request.Workload.ExpectedUserCount != maximumUsers || request.Workload.ExpectedConcurrency == nil || *request.Workload.ExpectedConcurrency != legacyConcurrency {
+		t.Fatalf("submitted workload snapshot=%#v", request.Workload)
+	}
+	if _, err := fixture.db.Exec(`UPDATE endpoint_configurations SET expected_user_count=9999 WHERE id=$1`, configuration.ID); err == nil {
+		t.Fatal("database mutated submitted configuration team size")
+	}
+	if _, err := fixture.db.Exec(`UPDATE deployment_requests SET expected_user_count=9999 WHERE id=$1`, request.ID); err == nil {
+		t.Fatal("database mutated submitted request team size")
+	}
+	legacyConfiguration, err := service.Create(ctx, session, endpoints.CreateInput{
+		ModelSlug: "safe-chat", OfferCode: "dedicated-compatible", ProfileCode: "dedicated-compatible",
+		EndpointAlias: "safe-chat", CapacityUnits: 1,
+		Workload: endpoints.Workload{ExpectedConcurrency: integerPointer(42)},
+	}, "legacy-no-team-create-0001")
+	if err != nil {
+		t.Fatalf("create legacy configuration: %v", err)
+	}
+	if legacyConfiguration.Workload.ExpectedUserCount != nil {
+		t.Fatal("team size was inferred from legacy concurrency")
+	}
+	if _, err := fixture.db.Exec(`UPDATE inference_targets SET enabled=false WHERE name='shared-openrouter'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Create(ctx, session, endpoints.CreateInput{
+		ModelSlug: "safe-chat", ServiceMode: "shared",
+		Workload: endpoints.Workload{ExpectedUserCount: &users},
+	}, "managed-selection-disabled-target-0001"); !errors.Is(err, platform.ErrNotFound) {
+		t.Fatalf("managed selection attached an unavailable shared target: %v", err)
+	}
+}
+
 func TestPostgresFreeEvaluationAndDedicatedQuoteFulfilmentRemainSeparate(t *testing.T) {
 	fixture := newDatabaseFixture(t)
 	ctx := context.Background()
@@ -255,6 +391,12 @@ func TestPostgresFreeEvaluationAndDedicatedQuoteFulfilmentRemainSeparate(t *test
 	contextTokens := int64(65536)
 	latencyPriority := "throughput"
 	capacityWorkload := endpoints.Workload{UseCase: "Quarter-end document processing", ExpectedContextTokens: &contextTokens, ExpectedConcurrency: integerPointer(4), LatencyPriority: &latencyPriority}
+	capacityUsers := 12
+	unsupportedCapacityWorkload := capacityWorkload
+	unsupportedCapacityWorkload.ExpectedUserCount = &capacityUsers
+	if _, err := service.Capacity(ctx, otherSession, dedicatedEndpoint.ID, 2, unsupportedCapacityWorkload, "capacity-team-size-unsupported-0001"); !errors.Is(err, platform.ErrInvalid) {
+		t.Fatalf("capacity-increase API accepted endpoint team size: %v", err)
+	}
 	capacityRequest, err := service.Capacity(ctx, otherSession, dedicatedEndpoint.ID, 2, capacityWorkload, "capacity-operation-0001")
 	if err != nil {
 		t.Fatalf("create capacity request: %v", err)

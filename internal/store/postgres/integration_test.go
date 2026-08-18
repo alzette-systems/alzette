@@ -668,6 +668,48 @@ func TestPostgresSelfServiceCatalogueAndCapacityContracts(t *testing.T) {
 
 func TestPostgresMigrationDownIsSafeInIsolatedSchema(t *testing.T) {
 	fixture := newDatabaseFixture(t)
+	if _, err := fixture.db.Exec(migrationScript(t, "0014_human_agent_access.down.sql")); err != nil {
+		t.Fatal(err)
+	}
+	var agentGrantTable sql.NullString
+	if err := fixture.db.QueryRow(`SELECT to_regclass(current_schema() || '.human_agent_grants')`).Scan(&agentGrantTable); err != nil {
+		t.Fatal(err)
+	}
+	if agentGrantTable.Valid {
+		t.Fatalf("0014 down left human_agent_grants table: %s", agentGrantTable.String)
+	}
+	if _, err := fixture.db.Exec(migrationScript(t, "0013_workforce_invitations.down.sql")); err != nil {
+		t.Fatal(err)
+	}
+	var invitationTable sql.NullString
+	if err := fixture.db.QueryRow(`SELECT to_regclass(current_schema() || '.human_invitations')`).Scan(&invitationTable); err != nil {
+		t.Fatal(err)
+	}
+	if invitationTable.Valid {
+		t.Fatalf("0013 down left human_invitations table: %s", invitationTable.String)
+	}
+	if _, err := fixture.db.Exec(migrationScript(t, "0012_company_people_groups.down.sql")); err != nil {
+		t.Fatal(err)
+	}
+	var workforceTable sql.NullString
+	if err := fixture.db.QueryRow(`SELECT to_regclass(current_schema() || '.organisation_people')`).Scan(&workforceTable); err != nil {
+		t.Fatal(err)
+	}
+	if workforceTable.Valid {
+		t.Fatalf("0012 down left organisation_people table: %s", workforceTable.String)
+	}
+	if _, err := fixture.db.Exec(migrationScript(t, "0011_endpoint_team_size.down.sql")); err != nil {
+		t.Fatal(err)
+	}
+	var teamSizeColumns int
+	if err := fixture.db.QueryRow(`SELECT count(*) FROM information_schema.columns
+		WHERE table_schema=current_schema() AND column_name='expected_user_count'
+		  AND table_name IN ('endpoint_configurations','deployment_requests')`).Scan(&teamSizeColumns); err != nil {
+		t.Fatal(err)
+	}
+	if teamSizeColumns != 0 {
+		t.Fatalf("0011 down left %d expected_user_count columns", teamSizeColumns)
+	}
 	if _, err := fixture.db.Exec(migrationScript(t, "0010_capacity_request_intent.down.sql")); err != nil {
 		t.Fatal(err)
 	}
@@ -749,10 +791,10 @@ func TestPostgresMigrationDownIsSafeInIsolatedSchema(t *testing.T) {
 		t.Fatal("migration did not reapply after down")
 	}
 	var versions int
-	if err := fixture.db.QueryRow(`SELECT count(*) FROM schema_migrations WHERE version IN ('0001_openrouter_poc','0002_ledger_integrity','0003_route_binding_observations','0004_slice0_contract_guards','0005_portal_identity_and_service_plans','0006_usage_rollups_and_target_probes','0007_slice2_contract_closure','0008_self_service_catalogue','0009_endpoint_billing_control_plane','0010_capacity_request_intent')`).Scan(&versions); err != nil {
+	if err := fixture.db.QueryRow(`SELECT count(*) FROM schema_migrations WHERE version IN ('0001_openrouter_poc','0002_ledger_integrity','0003_route_binding_observations','0004_slice0_contract_guards','0005_portal_identity_and_service_plans','0006_usage_rollups_and_target_probes','0007_slice2_contract_closure','0008_self_service_catalogue','0009_endpoint_billing_control_plane','0010_capacity_request_intent','0011_endpoint_team_size','0012_company_people_groups')`).Scan(&versions); err != nil {
 		t.Fatal(err)
 	}
-	if versions != 10 {
+	if versions != 12 {
 		t.Fatalf("reapplied migration versions=%d", versions)
 	}
 }
@@ -815,10 +857,10 @@ func TestPostgresMigrationUpgradesExisting0001Schema(t *testing.T) {
 		t.Fatalf("upgrade existing 0001 schema: %v", err)
 	}
 	var versions int
-	if err := fixture.db.QueryRow(`SELECT count(*) FROM schema_migrations WHERE version IN ('0001_openrouter_poc','0002_ledger_integrity','0003_route_binding_observations','0004_slice0_contract_guards','0005_portal_identity_and_service_plans','0006_usage_rollups_and_target_probes','0007_slice2_contract_closure','0008_self_service_catalogue','0009_endpoint_billing_control_plane','0010_capacity_request_intent')`).Scan(&versions); err != nil {
+	if err := fixture.db.QueryRow(`SELECT count(*) FROM schema_migrations WHERE version IN ('0001_openrouter_poc','0002_ledger_integrity','0003_route_binding_observations','0004_slice0_contract_guards','0005_portal_identity_and_service_plans','0006_usage_rollups_and_target_probes','0007_slice2_contract_closure','0008_self_service_catalogue','0009_endpoint_billing_control_plane','0010_capacity_request_intent','0011_endpoint_team_size','0012_company_people_groups')`).Scan(&versions); err != nil {
 		t.Fatal(err)
 	}
-	if versions != 10 {
+	if versions != 12 {
 		t.Fatalf("upgraded migration versions=%d", versions)
 	}
 	var requestCount, attemptCount int

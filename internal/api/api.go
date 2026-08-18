@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -32,10 +33,31 @@ func Authenticate(r *http.Request, store platform.Store) (platform.Principal, er
 		return platform.Principal{}, platform.ErrUnauthenticated
 	}
 	token := strings.TrimPrefix(header, "Bearer ")
-	if strings.TrimSpace(token) != token || credentials.ValidateFormat(token) != nil {
+	if strings.TrimSpace(token) != token {
 		return platform.Principal{}, platform.ErrUnauthenticated
 	}
-	principal, err := store.Authenticate(r.Context(), credentials.Digest(token))
+	var principal platform.Principal
+	var err error
+	switch {
+	case strings.HasPrefix(token, "alz_k_"):
+		if credentials.ValidateFormat(token) != nil {
+			return platform.Principal{}, platform.ErrUnauthenticated
+		}
+		principal, err = store.Authenticate(r.Context(), credentials.Digest(token))
+	case strings.HasPrefix(token, "alz_u_"):
+		if credentials.ValidateHumanFormat(token) != nil {
+			return platform.Principal{}, platform.ErrUnauthenticated
+		}
+		humanStore, ok := store.(interface {
+			AuthenticateHuman(context.Context, [32]byte) (platform.Principal, error)
+		})
+		if !ok {
+			return platform.Principal{}, platform.ErrUnauthenticated
+		}
+		principal, err = humanStore.AuthenticateHuman(r.Context(), credentials.Digest(token))
+	default:
+		return platform.Principal{}, platform.ErrUnauthenticated
+	}
 	if err != nil {
 		if errors.Is(err, platform.ErrUnauthenticated) || errors.Is(err, platform.ErrNotFound) {
 			return platform.Principal{}, platform.ErrUnauthenticated

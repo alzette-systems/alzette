@@ -1,6 +1,53 @@
 name: alzette-poc
 
 services:
+  casdoor:
+    image: casbin/casdoor-all-in-one@sha256:83954bb426823170cde6cbcc1eccabd4dd15432c3534c3c8b73326c0a45af78b
+    environment:
+      RUNNING_IN_DOCKER: "true"
+      httpport: 19084
+      driverName: sqlite
+      dataSourceName: file:/data/casdoor.db?cache=shared
+      dbName: casdoor
+      origin: ${ALZETTE_WORKFORCE_OIDC_ISSUER:-http://casdoor.localhost:19084}
+      runmode: prod
+    volumes:
+      - alzette-casdoor:/data
+      - ./deploy/casdoor/app.conf:/conf/app.conf:ro
+    ports:
+      - "127.0.0.1:${ALZETTE_CASDOOR_PORT:-19084}:19084"
+    networks:
+      default:
+        aliases:
+          - casdoor.localhost
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/19084"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  casdoor-bootstrap:
+    image: alzette-poc:local
+    build:
+      context: .
+    command: ["identity", "bootstrap-casdoor"]
+    environment:
+      ALZETTE_CASDOOR_BOOTSTRAP_ENDPOINT: http://casdoor:19084
+      ALZETTE_CASDOOR_ADMIN_PASSWORD: ${ALZETTE_CASDOOR_ADMIN_PASSWORD:-123}
+      ALZETTE_WORKFORCE_OIDC_CLIENT_ID: ${ALZETTE_WORKFORCE_OIDC_CLIENT_ID:-alzette-local-workforce}
+      ALZETTE_WORKFORCE_OIDC_CLIENT_SECRET: ${ALZETTE_WORKFORCE_OIDC_CLIENT_SECRET:-local-workforce-client-secret-change-before-remote-use}
+      ALZETTE_WORKFORCE_OIDC_REDIRECT_URL: ${ALZETTE_WORKFORCE_OIDC_REDIRECT_URL:-http://127.0.0.1:8081/login/oidc/callback}
+      ALZETTE_WORKFORCE_AGENT_OIDC_REDIRECT_URL: ${ALZETTE_WORKFORCE_AGENT_OIDC_REDIRECT_URL:-http://127.0.0.1:43127/callback}
+      ALZETTE_ALLOW_INSECURE_WORKFORCE_OIDC: ${ALZETTE_ALLOW_INSECURE_WORKFORCE_OIDC:-true}
+      ALZETTE_CASDOOR_DEMO_USERNAME: ${ALZETTE_CASDOOR_DEMO_USERNAME:-employee}
+      ALZETTE_CASDOOR_DEMO_PASSWORD: ${ALZETTE_CASDOOR_DEMO_PASSWORD:-employee-demo-password}
+      ALZETTE_CASDOOR_DEMO_EMAIL: ${ALZETTE_CASDOOR_DEMO_EMAIL:-employee@example.test}
+    depends_on:
+      casdoor:
+        condition: service_healthy
+    restart: "no"
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -60,9 +107,16 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-alzette}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-alzette}?sslmode=disable
       ALZETTE_PUBLIC_GATEWAY_URL: ${ALZETTE_PUBLIC_GATEWAY_URL:-http://127.0.0.1:8080}
+      ALZETTE_PUBLIC_CONTROL_URL: ${ALZETTE_PUBLIC_CONTROL_URL:-http://127.0.0.1:8081}
       ALZETTE_ALLOW_INSECURE_PUBLIC_GATEWAY: ${ALZETTE_ALLOW_INSECURE_PUBLIC_GATEWAY:-true}
       ALZETTE_PORTAL_COOKIE_SECURE: ${ALZETTE_PORTAL_COOKIE_SECURE:-false}
       ALZETTE_PORTAL_SESSION_TTL: ${ALZETTE_PORTAL_SESSION_TTL:-12h}
+      ALZETTE_WORKFORCE_OIDC_ISSUER: ${ALZETTE_WORKFORCE_OIDC_ISSUER:-http://casdoor.localhost:19084}
+      ALZETTE_WORKFORCE_OIDC_CLIENT_ID: ${ALZETTE_WORKFORCE_OIDC_CLIENT_ID:-alzette-local-workforce}
+      ALZETTE_WORKFORCE_OIDC_CLIENT_SECRET: ${ALZETTE_WORKFORCE_OIDC_CLIENT_SECRET:-local-workforce-client-secret-change-before-remote-use}
+      ALZETTE_WORKFORCE_OIDC_REDIRECT_URL: ${ALZETTE_WORKFORCE_OIDC_REDIRECT_URL:-http://127.0.0.1:8081/login/oidc/callback}
+      ALZETTE_WORKFORCE_AGENT_OIDC_REDIRECT_URL: ${ALZETTE_WORKFORCE_AGENT_OIDC_REDIRECT_URL:-http://127.0.0.1:43127/callback}
+      ALZETTE_ALLOW_INSECURE_WORKFORCE_OIDC: ${ALZETTE_ALLOW_INSECURE_WORKFORCE_OIDC:-true}
       ALZETTE_BILLING_PROVIDER: ${ALZETTE_BILLING_PROVIDER:-disabled}
       STRIPE_SECRET_KEY_FILE: /run/secrets/stripe_secret_key
       ALZETTE_BILLING_SUCCESS_URL: ${ALZETTE_BILLING_SUCCESS_URL:-}
@@ -74,6 +128,8 @@ services:
       - "${ALZETTE_HTTP_BIND_ADDRESS:-127.0.0.1}:${ALZETTE_CONTROL_PORT:-8081}:8081"
     depends_on:
       migrate:
+        condition: service_completed_successfully
+      casdoor-bootstrap:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/usr/local/bin/alzette", "healthcheck", "--url", "http://127.0.0.1:8081/readyz"]
@@ -144,6 +200,7 @@ services:
 
 volumes:
   alzette-postgres:
+  alzette-casdoor:
 
 secrets:
   openrouter_api_key:

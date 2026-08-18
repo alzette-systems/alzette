@@ -87,6 +87,17 @@ func (s *Store) ProvisionHuman(ctx context.Context, spec platform.HumanUserSpec)
 		RETURNING id`, membershipID, result.UserID, orgID, projectID, environmentID, spec.Role).Scan(&result.MembershipID); err != nil {
 		return platform.HumanUserResult{}, mapWriteError("provision human membership", err)
 	}
+	personID, err := ids.New("per")
+	if err != nil {
+		return platform.HumanUserResult{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO organisation_people(id,organisation_id,user_id)
+		VALUES($1,$2,$3)
+		ON CONFLICT(organisation_id,user_id)
+		DO UPDATE SET enabled=true,updated_at=now()`, personID, orgID, result.UserID); err != nil {
+		return platform.HumanUserResult{}, mapWriteError("provision company person", err)
+	}
 	if err := insertActorAudit(ctx, tx, "operator", "cli", orgID, projectID, "human_user.provisioned", "succeeded", map[string]string{"user_id": result.UserID, "membership_id": result.MembershipID, "role": spec.Role}); err != nil {
 		return platform.HumanUserResult{}, err
 	}
@@ -129,10 +140,24 @@ func (s *Store) DisableHuman(ctx context.Context, username string) error {
 	}
 	defer tx.Rollback()
 	var userID string
-	if err := tx.QueryRowContext(ctx, `UPDATE human_users SET enabled=false,updated_at=now() WHERE username=$1 RETURNING id`, username).Scan(&userID); errors.Is(err, sql.ErrNoRows) {
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM human_users WHERE username=$1 FOR UPDATE`, username).Scan(&userID); errors.Is(err, sql.ErrNoRows) {
 		return platform.ErrNotFound
 	} else if err != nil {
 		return err
+	}
+	var currentOwner bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (
+		SELECT 1 FROM organisation_people person
+		JOIN organisation_ownerships ownership ON ownership.organisation_id=person.organisation_id AND ownership.person_id=person.id AND ownership.ended_at IS NULL
+		WHERE person.user_id=$1
+	)`, userID).Scan(&currentOwner); err != nil {
+		return err
+	}
+	if currentOwner {
+		return platform.ErrConflict
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE human_users SET enabled=false,updated_at=now() WHERE id=$1`, userID); err != nil {
+		return mapWriteError("disable human user", err)
 	}
 	if err := insertActorAudit(ctx, tx, "operator", "cli", "", "", "human_user.disabled", "succeeded", map[string]string{"user_id": userID}); err != nil {
 		return err
@@ -147,7 +172,8 @@ func (s *Store) CreatePortalSession(ctx context.Context, username, password stri
 		return platform.PortalSession{}, err
 	}
 	defer tx.Rollback()
-	var userID, hash string
+	var userID string
+	var hash sql.NullString
 	var enabled bool
 	err = tx.QueryRowContext(ctx, `SELECT id,password_hash,enabled FROM human_users WHERE username=$1`, username).Scan(&userID, &hash, &enabled)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -159,7 +185,7 @@ func (s *Store) CreatePortalSession(ctx context.Context, username, password stri
 	if err != nil {
 		return platform.PortalSession{}, err
 	}
-	if !enabled || !humanauth.VerifyPassword(hash, password) {
+	if !enabled || !hash.Valid || !humanauth.VerifyPassword(hash.String, password) {
 		_ = insertActorAudit(ctx, tx, "system", "portal_auth", "", "", "portal.login", "failed", map[string]string{"reason": "invalid_credentials"})
 		_ = tx.Commit()
 		return platform.PortalSession{}, platform.ErrUnauthenticated
@@ -225,12 +251,12 @@ func (s *Store) ReauthenticatePortalSession(ctx context.Context, tokenHash [32]b
 	if err != nil {
 		return platform.PortalSession{}, err
 	}
-	var passwordHash string
+	var passwordHash sql.NullString
 	var enabled bool
 	if err := tx.QueryRowContext(ctx, `SELECT password_hash,enabled FROM human_users WHERE id=$1`, session.User.ID).Scan(&passwordHash, &enabled); err != nil {
 		return platform.PortalSession{}, err
 	}
-	if !enabled || !humanauth.VerifyPassword(passwordHash, password) {
+	if !enabled || !passwordHash.Valid || !humanauth.VerifyPassword(passwordHash.String, password) {
 		if err := insertActorAudit(ctx, tx, "human_user", session.User.ID, session.Current.OrganisationID, session.Current.ProjectID, "portal.reauthentication", "failed", map[string]string{"reason": "invalid_credentials", "session_id": session.ID}); err != nil {
 			return platform.PortalSession{}, err
 		}
@@ -414,9 +440,6 @@ func (s *Store) ListPortalAccess(ctx context.Context, session platform.PortalSes
 }
 
 func (s *Store) CreatePortalServiceAccount(ctx context.Context, session platform.PortalSession, name string) (platform.PortalServiceAccount, error) {
-	if !session.Current.CanManageAccess() {
-		return platform.PortalServiceAccount{}, platform.ErrForbidden
-	}
 	name = strings.TrimSpace(name)
 	if !portalNamePattern.MatchString(name) {
 		return platform.PortalServiceAccount{}, platform.ErrInvalid
@@ -426,6 +449,9 @@ func (s *Store) CreatePortalServiceAccount(ctx context.Context, session platform
 		return platform.PortalServiceAccount{}, err
 	}
 	defer tx.Rollback()
+	if _, err := requireCompanyOwner(ctx, tx, session); err != nil {
+		return platform.PortalServiceAccount{}, err
+	}
 	id, err := ids.New("sa")
 	if err != nil {
 		return platform.PortalServiceAccount{}, err
@@ -444,9 +470,6 @@ func (s *Store) CreatePortalServiceAccount(ctx context.Context, session platform
 }
 
 func (s *Store) IssuePortalKey(ctx context.Context, session platform.PortalSession, spec platform.PortalKeyIssueSpec) (platform.PortalKeyResult, error) {
-	if !session.Current.CanManageAccess() {
-		return platform.PortalKeyResult{}, platform.ErrForbidden
-	}
 	spec.Name = strings.TrimSpace(spec.Name)
 	if !portalNamePattern.MatchString(spec.Name) {
 		return platform.PortalKeyResult{}, platform.ErrInvalid
@@ -464,6 +487,9 @@ func (s *Store) IssuePortalKey(ctx context.Context, session platform.PortalSessi
 		return platform.PortalKeyResult{}, err
 	}
 	defer tx.Rollback()
+	if _, err := requireCompanyOwner(ctx, tx, session); err != nil {
+		return platform.PortalKeyResult{}, err
+	}
 	var accountID string
 	if err := tx.QueryRowContext(ctx, `SELECT id FROM service_accounts WHERE id=$1 AND organisation_id=$2 AND project_id=$3 AND environment_id=$4 FOR UPDATE`, spec.ServiceAccountID, session.Current.OrganisationID, session.Current.ProjectID, session.Current.EnvironmentID).Scan(&accountID); errors.Is(err, sql.ErrNoRows) {
 		return platform.PortalKeyResult{}, platform.ErrNotFound
@@ -518,14 +544,14 @@ func (s *Store) IssuePortalKey(ctx context.Context, session platform.PortalSessi
 }
 
 func (s *Store) RevokePortalKey(ctx context.Context, session platform.PortalSession, prefix string) error {
-	if !session.Current.CanManageAccess() {
-		return platform.ErrForbidden
-	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	if _, err := requireCompanyOwner(ctx, tx, session); err != nil {
+		return err
+	}
 	var accountID string
 	err = tx.QueryRowContext(ctx, `
 		UPDATE api_keys k SET revoked_at=now()

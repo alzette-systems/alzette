@@ -32,10 +32,6 @@ type PortalMembership struct {
 	Role             string `json:"role"`
 }
 
-func (m PortalMembership) CanManageAccess() bool {
-	return m.Role == PortalRoleOrgAdmin || m.Role == PortalRoleProjectAdmin
-}
-
 func (m PortalMembership) Principal() Principal {
 	return Principal{
 		OrganisationID: m.OrganisationID, OrganisationName: m.OrganisationName, OrganisationSlug: m.OrganisationSlug,

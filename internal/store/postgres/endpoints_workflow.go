@@ -19,7 +19,7 @@ const deploymentRequestSelect = `SELECT dr.id,COALESCE(c.id,''),COALESCE(ce.id,'
 	cm.slug,cm.name,v.version,COALESCE(ce.endpoint_alias,''),
 	dr.current_capacity_units,dr.requested_capacity_units,dr.workload_use_case,dr.expected_context_tokens,
 	dr.expected_concurrency,dr.expected_requests_per_minute,dr.latency_priority,dr.expected_monthly_requests,
-	dr.quote_id,pr.id,dr.submitted_at,dr.approved_at,dr.completed_at
+	dr.expected_user_count,dr.quote_id,pr.id,dr.submitted_at,dr.approved_at,dr.completed_at
 	FROM deployment_requests dr
 	JOIN deployment_profiles p ON p.id=dr.deployment_profile_id
 	JOIN catalogue_model_versions v ON v.id=p.catalogue_model_version_id
@@ -46,7 +46,7 @@ func (s *Store) GetDeploymentRequest(ctx context.Context, session platform.Porta
 
 func scanDeploymentRequest(row rowScanner) (endpoints.DeploymentRequest, error) {
 	var result endpoints.DeploymentRequest
-	var current, contextTokens, monthlyRequests sql.NullInt64
+	var current, contextTokens, monthlyRequests, userCount sql.NullInt64
 	var concurrency, requestsPerMinute sql.NullInt64
 	var latencyPriority sql.NullString
 	var quoteID, paymentID sql.NullString
@@ -54,7 +54,7 @@ func scanDeploymentRequest(row rowScanner) (endpoints.DeploymentRequest, error) 
 	if err := row.Scan(&result.ID, &result.ConfigurationID, &result.EndpointID, &result.Kind, &result.Status,
 		&result.ProfileCode, &result.ModelSlug, &result.ModelName, &result.ModelVersion, &result.EndpointAlias,
 		&current, &result.RequestedCapacityUnits, &result.Workload.UseCase,
-		&contextTokens, &concurrency, &requestsPerMinute, &latencyPriority, &monthlyRequests,
+		&contextTokens, &concurrency, &requestsPerMinute, &latencyPriority, &monthlyRequests, &userCount,
 		&quoteID, &paymentID, &submitted, &approved, &completed); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return endpoints.DeploymentRequest{}, platform.ErrNotFound
@@ -67,6 +67,10 @@ func scanDeploymentRequest(row rowScanner) (endpoints.DeploymentRequest, error) 
 	}
 	result.Workload.ExpectedContextTokens = nullInt64Pointer(contextTokens)
 	result.Workload.ExpectedMonthlyRequests = nullInt64Pointer(monthlyRequests)
+	if userCount.Valid {
+		value := int(userCount.Int64)
+		result.Workload.ExpectedUserCount = &value
+	}
 	if concurrency.Valid {
 		value := int(concurrency.Int64)
 		result.Workload.ExpectedConcurrency = &value

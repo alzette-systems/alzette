@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Accept an employee invitation to Alzette Systems.">
+  <title>Employee invitation — Alzette Systems</title>
+  <link rel="icon" href="/alzette-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/login.css">
+</head>
+<body class="login-page">
+  <main class="login-shell">
+    <section class="login-card" aria-labelledby="invite-heading">
+      <a class="login-brand" href="/" aria-label="Alzette Systems"><img src="/alzette-mark.svg" alt="" width="34" height="34"><span>alzette<span>.systems</span></span></a>
+      <p class="login-kicker">Employee invitation</p>
+      <h1 id="invite-heading">Confirm your identity to continue.</h1>
+      <p>This clean page intentionally does not disclose the company, inviter, groups, or model endpoints before authentication.</p>
+      {{if .Error}}<div class="login-error" role="alert">{{.Error}}</div>{{end}}
+      {{if .Available}}
+      <form method="post" action="/accept-invite"><input type="hidden" name="intent" value="continue"><button type="submit">Continue with company sign-in →</button></form>
+      <p class="login-note">Use the exact email address that received the invitation. Authentication alone never grants access; Alzette rechecks the active invitation and group assignments before creating an employee membership.</p>
+      {{else}}
+      <div class="login-error" role="status">Employee federated sign-in is not configured on this deployment. The invitation remains pending; ask the company owner or Alzette support to retry after sign-in is enabled.</div>
+      {{end}}
+    </section>
+  </main>
+</body>
+</html>

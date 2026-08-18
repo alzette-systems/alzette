@@ -30,7 +30,6 @@
       step: 1,
       modelSlug: '',
       mode: '',
-      profileId: '',
       draftId: '',
       draftLoaded: false,
       operationId: '',
@@ -984,8 +983,7 @@
       unavailable: false,
       source: stringValue(firstValue(root, ['source.label', 'source', 'as_of']), 'Access snapshot'),
       permissions: permissions,
-      role: stringValue(firstValue(root, ['role', 'permissions.role']), ''),
-      canManage: firstValue(root, ['can_manage', 'canManage']) === true || permissions.can_manage === true,
+      canManage: firstValue(root, ['can_manage']) === true,
       allowedScopes: allowed,
       keyPolicy: keyPolicy,
       serviceAccounts: serviceAccounts,
@@ -998,7 +996,7 @@
       raw: {}, unavailable: true,
       source: 'Access metadata unavailable',
       detail: message || 'Access metadata could not be evaluated. No inventory or permission claim is made.',
-      permissions: {}, role: '', canManage: false, allowedScopes: [], keyPolicy: {}, serviceAccounts: [], keys: []
+      permissions: {}, canManage: false, allowedScopes: [], keyPolicy: {}, serviceAccounts: [], keys: []
     };
   }
 
@@ -1518,7 +1516,7 @@
     setState(stateNode, status);
     bind('models.source', value.source);
     bind('models.stateLabel', !state.live ? 'Catalogue preview only' : value.unavailable ? 'Catalogue unavailable' : value.models.length ? 'Connected model catalogue' : 'No catalogue entries');
-    bind('models.stateDetail', !state.live ? 'No model rows are fabricated in this preview. Connect the catalogue to see real releases and eligible profiles.' : value.detail);
+    bind('models.stateDetail', !state.live ? 'No model rows are fabricated in this preview. Connect the catalogue to see real releases and available services.' : value.detail);
     var body = q('#models-table tbody');
     if (body) {
       removeChildren(body);
@@ -1574,21 +1572,20 @@
     bindText('#model-detail-modalities', value.modalities);
     bindText('#model-detail-source', value.source + ' · ' + value.freshness);
     bindText('#model-detail-capabilities', value.capabilitiesText + (value.licence !== 'Unknown' ? ' · Licence: ' + value.licence : '') + (value.support !== 'Unknown' ? ' · Support: ' + value.support : ''));
-    bindText('#model-detail-availability', value.profiles.length ? 'The registry supplied ' + value.profiles.length + ' eligible profile record' + (value.profiles.length === 1 ? '' : 's') + '. Availability remains profile-specific.' : 'No eligible profile evidence was supplied for this release.');
+    var services = configurableProfiles(value);
+    bindText('#model-detail-availability', services.length ? services.length + ' service' + (services.length === 1 ? ' is' : 's are') + ' currently available. Alzette manages the deployment configuration.' : 'No service is currently available for this release.');
     var configure = q('#model-configure-link');
-    if (configure) { configure.href = '/app/endpoints/new?model=' + encodeURIComponent(value.slug); configure.setAttribute('data-view-link', ''); configure.disabled = !state.live || !value.profiles.length; }
+    if (configure) { configure.href = '/app/endpoints/new?model=' + encodeURIComponent(value.slug); configure.setAttribute('data-view-link', ''); configure.hidden = !state.live || !services.length; }
     var body = q('#model-profiles-table tbody');
     if (!body) return;
     removeChildren(body);
-    if (!state.live || !value.profiles.length) { body.appendChild(emptyRow(6, !state.live ? 'No connected profile evidence supplied.' : 'No eligible execution profiles supplied.')); return; }
-    value.profiles.forEach(function (profile) {
+    if (!state.live || !services.length) { body.appendChild(emptyRow(4, !state.live ? 'No connected service evidence supplied.' : 'No service is currently available.')); return; }
+    services.forEach(function (profile) {
       var row = create('tr');
       appendCell(row, profile.mode);
-      var identity = create('td'); identity.appendChild(create('span', 'table-primary', profile.name)); if (profile.executionClass !== 'Unknown') identity.appendChild(create('span', 'table-secondary', profile.executionClass)); row.appendChild(identity);
-      appendCell(row, profile.capacity + (profile.price !== 'Unknown' ? ' · ' + profile.price : ''));
       appendCell(row, profile.availability);
-      appendCell(row, profile.commercial + (profile.assumptions ? ' · ' + profile.assumptions : ''));
-      var action = create('td'); var link = create('a', 'table-action', profile.eligible ? 'Configure' : 'Not eligible'); link.href = profile.eligible ? '/app/endpoints/new?model=' + encodeURIComponent(value.slug) + '&mode=' + encodeURIComponent(String(profile.mode).toLowerCase()) + '&profile=' + encodeURIComponent(profile.id) : '/app/docs'; if (profile.eligible) link.setAttribute('data-view-link', ''); action.appendChild(link); row.appendChild(action); body.appendChild(row);
+      appendCell(row, profile.commercial + (profile.price !== 'Unknown' ? ' · ' + profile.price : '') + (profile.assumptions ? ' · ' + profile.assumptions : ''));
+      var action = create('td'); var link = create('a', 'table-action', 'Configure'); link.href = '/app/endpoints/new?model=' + encodeURIComponent(value.slug) + '&mode=' + encodeURIComponent(String(profile.mode).toLowerCase()); link.setAttribute('data-view-link', ''); action.appendChild(link); row.appendChild(action); body.appendChild(row);
     });
   }
 
@@ -1599,7 +1596,7 @@
 
   function fillModelDetailUnknown() {
     ['#model-detail-release', '#model-detail-lifecycle', '#model-detail-context', '#model-detail-modalities', '#model-detail-source', '#model-detail-capabilities', '#model-detail-availability'].forEach(function (selector) { bindText(selector, 'Unknown'); });
-    var body = q('#model-profiles-table tbody'); if (body) { removeChildren(body); body.appendChild(emptyRow(6, 'No connected profile evidence supplied.')); }
+    var body = q('#model-profiles-table tbody'); if (body) { removeChildren(body); body.appendChild(emptyRow(4, 'No connected service evidence supplied.')); }
   }
 
   function commercialLabel(value) {
@@ -1748,14 +1745,16 @@
     return models.filter(function (model) { return model.slug === state.configurator.modelSlug; })[0] || null;
   }
 
-  function configProfile() {
-    var model = configModel();
-    if (model && !state.configurator.draftId && (!state.configurator.values.alias || state.configurator.values.model_slug !== model.slug)) {
-      state.configurator.values.alias = model.endpointAlias;
-      state.configurator.values.model_slug = model.slug;
-    }
-    if (!model) return null;
-    return (model.profiles || []).filter(function (profile) { return profile.id === state.configurator.profileId; })[0] || null;
+  function configurableProfiles(model, mode) {
+    if (!model) return [];
+    return (model.profiles || []).filter(function (profile) {
+      var modeMatches = !mode || profile.mode.toLowerCase() === humanMode(mode).toLowerCase();
+      return modeMatches && profile.eligible && profile.availabilityRaw === 'available_to_configure';
+    });
+  }
+
+  function serviceModeFromOfferKind(kind) {
+    return humanMode(kind).toLowerCase() === 'dedicated' ? 'dedicated' : 'shared';
   }
 
   function setConfigError(message) {
@@ -1781,41 +1780,36 @@
     if (active) { if (list) list.hidden = true; if (detail) detail.hidden = true; if (requestView) requestView.hidden = true; }
     if (!active) return;
     var locked = !!state.configurator.draftId;
-    var models = state.catalogue && state.catalogue.models || [];
+    var allModels = state.catalogue && state.catalogue.models || [];
+    var models = allModels.filter(function (item) { return configurableProfiles(item).length || item.slug === state.configurator.modelSlug; });
     var modelSelect = q('#config-model');
     if (modelSelect) {
       var selectedModel = state.configurator.modelSlug;
       removeChildren(modelSelect);
-      var placeholder = create('option', '', state.live ? (models.length ? 'Select a connected model' : 'No connected models supplied') : 'Connect catalogue to choose a model'); placeholder.value = ''; modelSelect.appendChild(placeholder);
+      var placeholder = create('option', '', state.live ? (models.length ? 'Select a connected model' : 'No configurable models available') : 'Connect catalogue to choose a model'); placeholder.value = ''; modelSelect.appendChild(placeholder);
       models.forEach(function (model) { var option = create('option', '', model.name + ' · ' + model.release); option.value = model.slug; option.selected = model.slug === selectedModel; modelSelect.appendChild(option); });
       modelSelect.disabled = locked || !state.live || !models.length;
     }
     var model = configModel();
+    if (model && !state.configurator.draftId && (!state.configurator.values.alias || state.configurator.values.model_slug !== model.slug)) {
+      state.configurator.values.alias = model.endpointAlias;
+      state.configurator.values.model_slug = model.slug;
+    }
     bindText('#config-scope', state.me ? state.me.projectEnvironment : 'Project / environment');
     var modelFacts = q('#config-model-facts');
     if (modelFacts) modelFacts.textContent = model ? model.summary + ' · Context ' + model.context + ' · ' + model.modalities : (state.live ? 'Choose a connected model to inspect release facts.' : 'No connected model catalogue is available in this preview.');
-    all('input[name="deployment_mode"]').forEach(function (input) { input.checked = String(input.value) === String(state.configurator.mode); input.disabled = locked || !model; });
+    var availableModes = ['shared', 'dedicated'].filter(function (mode) { return configurableProfiles(model, mode).length; });
+    if (!locked && availableModes.indexOf(state.configurator.mode) < 0) state.configurator.mode = availableModes.length === 1 ? availableModes[0] : '';
+    all('input[name="deployment_mode"]').forEach(function (input) {
+      input.checked = String(input.value) === String(state.configurator.mode);
+      input.disabled = locked || !model || availableModes.indexOf(input.value) < 0;
+    });
     var modeHelp = q('#config-mode-help');
-    if (modeHelp) modeHelp.textContent = model ? (state.configurator.mode ? 'Profiles for ' + humanMode(state.configurator.mode) + ' will be shown in the next step.' : 'Choose Shared or Dedicated to filter eligible profiles.') : 'Choose a model before selecting a mode.';
-    var profileSelect = q('#config-profile');
-    var profiles = model ? (model.profiles || []).filter(function (profile) { return !state.configurator.mode || profile.mode.toLowerCase() === humanMode(state.configurator.mode).toLowerCase(); }) : [];
-    if (profileSelect) {
-      removeChildren(profileSelect);
-      var profilePlaceholder = create('option', '', profiles.length ? 'Select an eligible profile' : 'No eligible profile supplied'); profilePlaceholder.value = ''; profileSelect.appendChild(profilePlaceholder);
-      profiles.forEach(function (profile) { var option = create('option', '', profile.name + ' · ' + profile.availability); option.value = profile.id; option.selected = profile.id === state.configurator.profileId; profileSelect.appendChild(option); });
-      profileSelect.disabled = locked || !profiles.length;
-    }
-    var profile = configProfile();
-    var profileFacts = q('#config-profile-facts');
-    if (profileFacts) profileFacts.textContent = profile ? [profile.capacity, profile.price !== 'Unknown' ? profile.price : null, profile.assumptions || null].filter(Boolean).join(' · ') || 'No capacity or commercial facts supplied.' : 'Profile capacity, cost, and availability assumptions appear here when supplied by the backend.';
+    if (modeHelp) modeHelp.textContent = model ? (state.configurator.mode ? humanMode(state.configurator.mode) + ' service is available. Alzette will attach the compatible configuration.' : 'Choose one of the available services.') : 'Choose a model before selecting a service.';
     var values = state.configurator.values || {};
     var configuratorFieldKeys = {
       'config-alias': 'alias',
-      'config-use-case': 'use_case',
-      'config-context': 'expected_context',
-      'config-concurrency': 'expected_concurrency',
-      'config-latency': 'latency_intent',
-      'config-units': 'capacity_units'
+      'config-expected-users': 'expected_user_count'
     };
     Object.keys(configuratorFieldKeys).forEach(function (id) {
       var node = q('#' + id);
@@ -1823,24 +1817,19 @@
       if (node && document.activeElement !== node && values[key] !== undefined) node.value = values[key];
     });
     var aliasInput = q('#config-alias'); if (aliasInput) aliasInput.readOnly = true;
-    var unitsInput = q('#config-units');
-    if (unitsInput) {
-      unitsInput.min = profile && profile.minimumCapacityUnits !== null ? String(profile.minimumCapacityUnits) : '1';
-      if (profile && profile.maximumCapacityUnits !== null) unitsInput.max = String(profile.maximumCapacityUnits); else unitsInput.removeAttribute('max');
-      if (!values.capacity_units && profile && profile.minimumCapacityUnits !== null && document.activeElement !== unitsInput) { values.capacity_units = profile.minimumCapacityUnits; unitsInput.value = String(profile.minimumCapacityUnits); }
-    }
     var review = q('#config-review');
     if (review) {
       removeChildren(review);
-      var entries = [['Model', model ? model.name + ' · ' + model.release : 'Unknown'], ['Mode', state.configurator.mode ? humanMode(state.configurator.mode) : 'Unknown'], ['Alias', values.alias || 'Unknown'], ['Scope', state.me ? state.me.projectEnvironment : 'Unknown'], ['Profile', profile ? profile.name : 'Unknown'], ['Capacity / estimate', profile ? [profile.capacity, profile.price !== 'Unknown' ? profile.price : null].filter(Boolean).join(' · ') || 'Unknown' : 'Unknown']];
+      var peopleCount = validExpectedUserCount(values.expected_user_count);
+      var entries = [['Model', model ? model.name + ' · ' + model.release : 'Unknown'], ['Service', state.configurator.mode ? humanMode(state.configurator.mode) : 'Unknown'], ['Alias', values.alias || 'Unknown'], ['Scope', state.me ? state.me.projectEnvironment : 'Unknown'], ['People using this endpoint', peopleCount === null ? 'Not recorded' : formatCount(peopleCount)], ['Deployment configuration', 'Selected and managed by Alzette']];
       entries.forEach(function (entry) { var row = create('div'); row.appendChild(create('dt', '', entry[0])); row.appendChild(create('dd', '', entry[1])); review.appendChild(row); });
     }
-    var step = Math.max(1, Math.min(6, Number(state.configurator.step) || 1));
+    var step = Math.max(1, Math.min(5, Number(state.configurator.step) || 1));
     all('[data-config-step-panel]').forEach(function (panel) { panel.hidden = Number(panel.getAttribute('data-config-step-panel')) !== step; });
     all('[data-config-step-indicator]').forEach(function (indicator) { var number = Number(indicator.getAttribute('data-config-step-indicator')); indicator.classList.toggle('is-current', number === step); indicator.classList.toggle('is-complete', number < step); });
     var back = q('#config-back'); if (back) back.disabled = step === 1;
-    var next = q('#config-next'); if (next) next.hidden = step === 6;
-    var submit = q('#config-submit'); if (submit) { submit.hidden = step !== 6; submit.textContent = state.configurator.mode === 'dedicated' ? 'Request quote / provisioning' : 'Request shared evaluation'; }
+    var next = q('#config-next'); if (next) next.hidden = step === 5;
+    var submit = q('#config-submit'); if (submit) { submit.hidden = step !== 5; submit.textContent = state.configurator.mode === 'dedicated' ? 'Request dedicated service' : 'Create shared endpoint'; }
     var save = q('#config-save'); if (save) save.disabled = !state.live;
     var draftReady = !!state.configurator.draftId && state.configurator.draftLoaded;
     setState(q('#endpoint-config-state'), draftReady ? 'partial' : (state.configurator.draftId ? 'loading' : (state.live ? 'unknown' : 'fallback')));
@@ -1852,26 +1841,25 @@
     var values = state.configurator.values || {};
     values.model_slug = configValue('config-model', state.configurator.modelSlug);
     values.alias = configValue('config-alias');
-    values.use_case = configValue('config-use-case');
-    values.expected_context = configValue('config-context');
-    values.expected_concurrency = configValue('config-concurrency');
-    values.latency_intent = configValue('config-latency');
-    values.capacity_units = configValue('config-units');
+    values.expected_user_count = configValue('config-expected-users');
     state.configurator.values = values;
     state.configurator.modelSlug = values.model_slug;
   }
 
-  function validateConfigStep(step) {
+  function validExpectedUserCount(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    var count = Number(value);
+    return Number.isInteger(count) && count >= 1 && count <= 10000 ? count : null;
+  }
+
+  function validateConfigStep(step, requireComplete) {
     captureConfiguratorValues();
     if (step === 1 && (!state.configurator.modelSlug || !configModel())) return 'Choose a model supplied by the connected catalogue.';
     if (step === 2 && !state.configurator.mode) return 'Choose Shared or Dedicated.';
     if (step === 3 && !state.configurator.values.alias) return 'Enter a stable endpoint alias.';
     if (step === 3 && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(state.configurator.values.alias)) return 'Use letters, numbers, dots, underscores, colons, or hyphens; begin with a letter or number.';
-    if (step === 4 && state.configurator.values.expected_context && (Number(state.configurator.values.expected_context) < 1 || Number(state.configurator.values.expected_context) > 10000000)) return 'Expected context tokens must be between 1 and 10,000,000.';
-    if (step === 4 && state.configurator.values.expected_concurrency && (Number(state.configurator.values.expected_concurrency) < 1 || Number(state.configurator.values.expected_concurrency) > 10000)) return 'Expected concurrency must be between 1 and 10,000.';
-    if (step === 5 && (!state.configurator.profileId || !configProfile())) return 'Choose an eligible offer and profile supplied by the connected catalogue.';
-    if (step === 5) { var profile = configProfile(); var units = Number(state.configurator.values.capacity_units || (profile && profile.minimumCapacityUnits) || 1); if (profile && ((profile.minimumCapacityUnits !== null && units < profile.minimumCapacityUnits) || (profile.maximumCapacityUnits !== null && units > profile.maximumCapacityUnits))) return 'Capacity units must stay within the selected profile range.'; }
-    if (step === 6 && state.configurator.mode === 'dedicated' && !(q('#config-confirm') && q('#config-confirm').checked)) return 'Confirm that dedicated capacity is a request, quote, provisioning, and validation path.';
+    if ((step === 4 || requireComplete) && validExpectedUserCount(state.configurator.values.expected_user_count) === null) return 'Enter a whole number between 1 and 10,000.';
+    if (step === 5 && state.configurator.mode === 'dedicated' && !(q('#config-confirm') && q('#config-confirm').checked)) return 'Confirm that dedicated capacity is a request, quote, provisioning, and validation path.';
     return '';
   }
 
@@ -1882,10 +1870,8 @@
     return {
       id: stringValue(firstValue(value, ['id', 'configuration_id']), ''),
       modelSlug: stringValue(firstValue(value, ['model_slug']), ''),
-      offerCode: stringValue(firstValue(value, ['offer_code']), ''),
-      profileCode: stringValue(firstValue(value, ['profile_code']), ''),
+      offerKind: stringValue(firstValue(value, ['offer_kind']), ''),
       alias: stringValue(firstValue(value, ['endpoint_alias', 'alias']), ''),
-      capacityUnits: numberValue(firstValue(value, ['capacity_units'])),
       workload: workload,
       status: stringValue(firstValue(value, ['status']), 'draft')
     };
@@ -1896,22 +1882,14 @@
     state.configurator.draftId = configuration.id;
     state.configurator.draftLoaded = true;
     state.configurator.modelSlug = configuration.modelSlug;
-    var model = configModel();
-    var profile = model && (model.profiles || []).filter(function (item) {
-      return item.offerCode === configuration.offerCode || (item.profileCode === configuration.profileCode && (!configuration.offerCode || item.offerCode === configuration.offerCode));
-    })[0];
-    state.configurator.profileId = profile ? profile.id : configuration.offerCode;
-    state.configurator.mode = profile ? String(profile.mode).toLowerCase() : '';
+    state.configurator.mode = serviceModeFromOfferKind(configuration.offerKind);
+    var peopleCount = firstValue(configuration.workload, ['expected_user_count']);
     state.configurator.values = {
       model_slug: configuration.modelSlug,
       alias: configuration.alias,
-      use_case: stringValue(firstValue(configuration.workload, ['use_case']), ''),
-      expected_context: firstValue(configuration.workload, ['expected_context_tokens']),
-      expected_concurrency: firstValue(configuration.workload, ['expected_concurrency']),
-      latency_intent: stringValue(firstValue(configuration.workload, ['latency_priority']), ''),
-      capacity_units: configuration.capacityUnits
+      expected_user_count: peopleCount
     };
-    state.configurator.step = 6;
+    state.configurator.step = validExpectedUserCount(peopleCount) === null ? 4 : 5;
     persistConfiguratorURL(true);
     return true;
   }
@@ -1923,7 +1901,6 @@
     var params = {
       model: state.configurator.modelSlug,
       mode: state.configurator.mode,
-      profile: state.configurator.profileId,
       draft: state.configurator.draftId,
       operation: state.configurator.draftId ? '' : state.configurator.operationId
     };
@@ -1940,26 +1917,19 @@
   function configurationBody(updateOnly) {
     captureConfiguratorValues();
     var values = state.configurator.values || {};
-    var profile = configProfile();
     var workload = {};
-    if (values.use_case) workload.use_case = String(values.use_case);
-    if (values.expected_context) workload.expected_context_tokens = Number(values.expected_context);
-    if (values.expected_concurrency) workload.expected_concurrency = Number(values.expected_concurrency);
-    if (values.latency_intent) workload.latency_priority = String(values.latency_intent);
-    var capacityUnits = Number(values.capacity_units || (profile && profile.minimumCapacityUnits) || 1);
-    if (updateOnly) return { capacity_units: capacityUnits, workload: workload };
+    var peopleCount = validExpectedUserCount(values.expected_user_count);
+    if (peopleCount !== null) workload.expected_user_count = peopleCount;
+    if (updateOnly) return { workload: workload };
     return {
       model_slug: state.configurator.modelSlug,
-      offer_code: profile ? profile.offerCode : '',
-      profile_code: profile ? profile.profileCode : '',
-      endpoint_alias: values.alias,
-      capacity_units: capacityUnits,
+      service_mode: state.configurator.mode,
       workload: workload
     };
   }
 
   async function saveConfiguration(submit) {
-    var error = validateConfigStep(submit ? 6 : state.configurator.step);
+    var error = validateConfigStep(submit ? 5 : state.configurator.step, submit);
     if (error) { setConfigError(error); return; }
     setConfigError('');
     var button = submit ? q('#config-submit') : q('#config-save');
@@ -1986,7 +1956,7 @@
     var submittedRoot = unwrap(submitted.data);
     var requestId = stringValue(firstValue(submittedRoot, ['deployment_request_id', 'request_id', 'deployment_request.id', 'endpoint.deployment_request_id', 'id']), '');
     if (requestId) { await loadRequestProgress(requestId, true); navigatePath('/app/endpoints/requests/' + encodeURIComponent(requestId), true); }
-    else { state.configurator.step = 6; renderConfigurator(); showToast('Configuration submitted. The backend did not return a deployment request reference; readiness remains unknown.'); }
+    else { state.configurator.step = 5; renderConfigurator(); showToast('Configuration submitted. The backend did not return a deployment request reference; readiness remains unknown.'); }
   }
 
   function progressLabel(value) {
@@ -2024,12 +1994,8 @@
     var currentUnits = value.currentCapacityUnits;
     var capacityIntent = requestedUnits === null ? 'Unknown' : (currentUnits === null ? requestedUnits + ' capacity unit' + (requestedUnits === 1 ? '' : 's') + ' for a new endpoint' : currentUnits + ' → ' + requestedUnits + ' capacity units');
     bindText('#request-intent-capacity', capacityIntent);
-    bindText('#request-intent-use-case', stringValue(firstValue(value.workload, ['use_case']), 'Not specified'));
-    var expectedContext = numberValue(firstValue(value.workload, ['expected_context_tokens']));
-    bindText('#request-intent-context', expectedContext === null ? 'Not specified' : formatCount(expectedContext) + ' tokens');
-    var expectedConcurrency = numberValue(firstValue(value.workload, ['expected_concurrency']));
-    bindText('#request-intent-concurrency', expectedConcurrency === null ? 'Not specified' : formatCount(expectedConcurrency) + ' concurrent request' + (expectedConcurrency === 1 ? '' : 's'));
-    bindText('#request-intent-priority', humanStatus(firstValue(value.workload, ['latency_priority']) || 'Not specified'));
+    var peopleCount = numberValue(firstValue(value.workload, ['expected_user_count']));
+    bindText('#request-intent-expected-users', peopleCount === null ? 'Not recorded' : formatCount(peopleCount));
     setState(q('#endpoint-request-state'), progressClass(value.infrastructure.state));
     ['configuration', 'commercial', 'payment', 'infrastructure'].forEach(function (railName) {
       var rail = value[railName] || normalizeProgressRail(null, 'No status supplied.');
@@ -2085,11 +2051,8 @@
     renderDocs(value);
   }
 
-  function canAdmin(access) {
-    if (!access) return false;
-    var permission = access.permissions || {};
-    var role = String(access.role || '').toLowerCase();
-    return access.canManage === true || permission.admin === true || permission.can_manage_access === true || permission.manage_access === true || permission.access_admin === true || role === 'admin' || role === 'owner';
+  function canManageApplicationAccess(access) {
+    return !!access && access.canManage === true;
   }
 
   function renderScopeOptions() {
@@ -2133,12 +2096,12 @@
     var value = access || unavailableAccess();
     bind('access.source', value.source);
     var unavailable = value.unavailable === true;
-    var admin = canAdmin(value) && state.live && !unavailable;
+    var admin = canManageApplicationAccess(value) && state.live && !unavailable;
     var permission = q('#access-permission');
     setState(permission, unavailable ? 'unknown' : (admin ? 'allowed' : (state.live ? 'denied' : 'unknown')));
-    if (permission) permission.querySelector('span').textContent = unavailable ? value.detail : (admin ? 'Administrator actions are available for this membership/session.' : (state.live ? 'You can view this area, but your role cannot perform this action. Ask an administrator or owner for access.' : 'Connect an authenticated membership/session to determine administrator actions.'));
+    if (permission) permission.querySelector('span').textContent = unavailable ? value.detail : (admin ? 'You are the current company owner. Application-key actions are available.' : (state.live ? 'You can view this inventory, but only the current company owner can change application access.' : 'Connect an authenticated company session to evaluate owner authority.'));
     var createAccount = q('#service-account-open');
-    if (createAccount) { createAccount.disabled = !admin; createAccount.title = admin ? '' : (unavailable ? 'Access metadata unavailable' : 'Administrator permission required'); }
+    if (createAccount) { createAccount.disabled = !admin; createAccount.title = admin ? '' : (unavailable ? 'Access metadata unavailable' : 'Company owner authority required'); }
     renderScopeOptions();
     renderExpiryPolicy();
     renderAccounts(value, admin);
@@ -2537,7 +2500,7 @@
   }
 
   function openKeyDialog(action, accountId, key) {
-    if (!canAdmin(state.access) || !state.live) { showToast('Administrator permission is required for key actions.'); return; }
+    if (!canManageApplicationAccess(state.access) || !state.live) { showToast('Company owner authority is required for key actions.'); return; }
     state.keyAction = action || 'overlap';
     state.keyTarget = key || null;
     var select = q('#key-service-account');
@@ -2637,7 +2600,7 @@
     if (!result.ok) {
       if (definitiveResult(result)) clearOperationKey(operation);
       var message = result.status === 403
-        ? 'You can view this area, but your role cannot perform this action.'
+        ? 'Only the current company owner can perform this action.'
         : result.status === 409
           ? 'A key with this name already exists. If an earlier one-time reveal was interrupted, refresh Access and issue a new key with a distinct name; plaintext cannot be recovered.'
           : 'The key action could not be completed. No plaintext key was shown.';
@@ -2672,7 +2635,7 @@
     var operation = 'service-account-create:' + name;
     var result = await request('/api/portal/service-accounts', { method: 'POST', body: { name: name }, idempotency: operation });
     if (submit) { submit.disabled = false; submit.textContent = 'Create account'; }
-    if (!result.ok) { if (definitiveResult(result)) clearOperationKey(operation); formError(error, result.status === 403 ? 'You can view this area, but your role cannot perform this action.' : 'The service account could not be created.'); return; }
+    if (!result.ok) { if (definitiveResult(result)) clearOperationKey(operation); formError(error, result.status === 403 ? 'Only the current company owner can create a service account.' : 'The service account could not be created.'); return; }
     clearOperationKey(operation);
     var created = normalizeServiceAccount(firstValue(unwrap(result.data), ['service_account', 'serviceAccount']) || unwrap(result.data));
     closeDialog(q('#service-account-dialog'));
@@ -2687,11 +2650,11 @@
   }
 
   async function revokeKey(prefix, accountId) {
-    if (!canAdmin(state.access) || !state.live) { showToast('Administrator permission is required for key actions.'); return; }
+    if (!canManageApplicationAccess(state.access) || !state.live) { showToast('Company owner authority is required for key actions.'); return; }
     if (!window.confirm('Revoke ' + prefix + '? This stops the key and cannot be undone.')) return;
     var operation = 'key-revoke:' + prefix;
     var result = await request('/api/portal/keys/revoke', { method: 'POST', body: { prefix: prefix }, idempotency: operation });
-    if (!result.ok) { if (definitiveResult(result)) clearOperationKey(operation); showToast(result.status === 403 ? 'Administrator permission is required.' : 'The key could not be revoked.'); return; }
+    if (!result.ok) { if (definitiveResult(result)) clearOperationKey(operation); showToast(result.status === 403 ? 'Only the current company owner can revoke a key.' : 'The key could not be revoked.'); return; }
     clearOperationKey(operation);
     showToast('Key revoked.');
     await refreshAccess();
@@ -2749,7 +2712,7 @@
     if (path === '/app/models') return { view: 'models', kind: 'model-list' };
     if (path === '/app/endpoints/new') {
       var configQuery = new URLSearchParams(search || '');
-      return { view: 'endpoints', kind: 'config', modelSlug: configQuery.get('model') || '', mode: configQuery.get('mode') || '', profileId: configQuery.get('profile') || '', draftId: configQuery.get('draft') || '', operationId: configQuery.get('operation') || '' };
+      return { view: 'endpoints', kind: 'config', modelSlug: configQuery.get('model') || '', mode: configQuery.get('mode') || '', draftId: configQuery.get('draft') || '', operationId: configQuery.get('operation') || '' };
     }
     if ((match = path.match(/^\/app\/endpoints\/requests\/([^/]+)$/))) { var requestId = safeDecode(match[1]); return requestId ? { view: 'endpoints', kind: 'request', id: requestId } : { view: 'endpoints', kind: 'endpoint-list' }; }
     if ((match = path.match(/^\/app\/endpoints\/([^/]+)$/))) { var endpointId = safeDecode(match[1]); return endpointId ? { view: 'endpoints', kind: 'endpoint-detail', id: endpointId } : { view: 'endpoints', kind: 'endpoint-list' }; }
@@ -2795,12 +2758,11 @@
       }
       state.configurator.modelSlug = state.resource.modelSlug || '';
       state.configurator.mode = state.resource.mode || '';
-      state.configurator.profileId = state.resource.profileId || '';
       state.configurator.draftId = state.resource.draftId || '';
       if (!state.configurator.draftId) state.configurator.draftLoaded = false;
       state.configurator.operationId = state.resource.operationId || '';
       state.configurator.step = 1;
-      if (state.configurator.modelSlug) state.configurator.step = state.configurator.mode ? (state.configurator.profileId ? 5 : 2) : 1;
+      if (state.configurator.modelSlug) state.configurator.step = state.configurator.mode ? 2 : 1;
     }
     var usageModelChanged = false;
     if (state.resource.view === 'usage') {
@@ -2902,7 +2864,7 @@
     var contextForm = q('#context-form');
     if (contextForm) contextForm.addEventListener('submit', function (event) { if (q('#context-submit') && !q('#context-submit').hidden) switchMembership(event); });
     var serviceOpen = q('#service-account-open');
-    if (serviceOpen) serviceOpen.addEventListener('click', function () { if (canAdmin(state.access) && state.live) openDialog(q('#service-account-dialog')); else showToast('Administrator permission is required to create a service account.'); });
+    if (serviceOpen) serviceOpen.addEventListener('click', function () { if (canManageApplicationAccess(state.access) && state.live) openDialog(q('#service-account-dialog')); else showToast('Company owner authority is required to create a service account.'); });
     var serviceForm = q('#service-account-form');
     if (serviceForm) serviceForm.addEventListener('submit', createServiceAccount);
     var keyForm = q('#key-form');
@@ -3004,11 +2966,10 @@
       if (persist) persistConfiguratorURL(true);
     }
     var modelSelect = q('#config-model');
-    if (modelSelect) modelSelect.addEventListener('change', function () { state.configurator.modelSlug = modelSelect.value; state.configurator.mode = ''; state.configurator.profileId = ''; var selected = (state.catalogue && state.catalogue.models || []).filter(function (item) { return item.slug === modelSelect.value; })[0]; state.configurator.values.model_slug = modelSelect.value; state.configurator.values.alias = selected ? selected.endpointAlias : ''; configurationChanged(true); renderConfigurator(); });
-    all('input[name="deployment_mode"]').forEach(function (input) { input.addEventListener('change', function () { state.configurator.mode = input.value; state.configurator.profileId = ''; configurationChanged(true); renderConfigurator(); }); });
-    var profile = q('#config-profile'); if (profile) profile.addEventListener('change', function () { state.configurator.profileId = profile.value; configurationChanged(true); renderConfigurator(); });
-    ['config-alias', 'config-use-case', 'config-context', 'config-concurrency', 'config-latency', 'config-units'].forEach(function (id) { var node = q('#' + id); if (node) node.addEventListener('input', function () { captureConfiguratorValues(); configurationChanged(false); }); });
-    var next = q('#config-next'); if (next) next.addEventListener('click', function () { var error = validateConfigStep(state.configurator.step); if (error) { setConfigError(error); return; } setConfigError(''); state.configurator.step = Math.min(6, state.configurator.step + 1); renderConfigurator(); });
+    if (modelSelect) modelSelect.addEventListener('change', function () { state.configurator.modelSlug = modelSelect.value; state.configurator.mode = ''; var selected = (state.catalogue && state.catalogue.models || []).filter(function (item) { return item.slug === modelSelect.value; })[0]; state.configurator.values.model_slug = modelSelect.value; state.configurator.values.alias = selected ? selected.endpointAlias : ''; configurationChanged(true); renderConfigurator(); });
+    all('input[name="deployment_mode"]').forEach(function (input) { input.addEventListener('change', function () { state.configurator.mode = input.value; configurationChanged(true); renderConfigurator(); }); });
+    ['config-alias', 'config-expected-users'].forEach(function (id) { var node = q('#' + id); if (node) node.addEventListener('input', function () { captureConfiguratorValues(); configurationChanged(false); }); });
+    var next = q('#config-next'); if (next) next.addEventListener('click', function () { var error = validateConfigStep(state.configurator.step); if (error) { setConfigError(error); return; } setConfigError(''); state.configurator.step = Math.min(5, state.configurator.step + 1); renderConfigurator(); });
     var back = q('#config-back'); if (back) back.addEventListener('click', function () { state.configurator.step = Math.max(1, state.configurator.step - 1); setConfigError(''); renderConfigurator(); });
     var save = q('#config-save'); if (save) save.addEventListener('click', function () { saveConfiguration(false); });
     form.addEventListener('submit', function (event) { event.preventDefault(); saveConfiguration(true); });
