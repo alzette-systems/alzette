@@ -154,6 +154,35 @@ members:
     can_spawn: false
     parallel: true
 
+  - name: release-engineer
+    role: devops-and-release
+    kind: codex
+    model: gpt-5.6-luna
+    launch_args:
+      - --model
+      - gpt-5.6-luna
+      - -c
+      - model_reasoning_effort="low"
+    tab: release-engineer
+    mission: Own routine Git release execution, CI artifact publication, and Docker Compose deployment operations for Alzette
+    handles:
+      - working-tree and branch hygiene, informed commit sequencing, tags, changelogs, and GitHub release publication
+      - CI workflow monitoring, build artifact checksums, provenance, and downloadable release validation
+      - Docker Compose configuration, lifecycle, image refresh, migrations, health checks, logs, and rollback preparation
+      - Traefik labels, deployment hostnames, TLS routing checks, and deployment runbooks
+      - post-deployment smoke checks and concise operational status reporting
+    delegate_when:
+      - a task asks to commit, push, tag, package, publish, or validate a release
+      - Docker Compose, CI, Traefik, deployment health, logs, images, migrations, or rollback are involved
+      - a bounded routine deployment needs execution and evidence
+    avoid_when:
+      - product behavior, architecture, or application code must be designed
+      - a destructive production operation, secret rotation, DNS change, or irreversible rollback lacks explicit user approval
+      - the task requires independent QA or security review of the release engineer's own work
+    output: Return commits and tags created, deployment actions, CI and health evidence, rollback position, blockers, and residual operational risks
+    can_spawn: false
+    parallel: true
+
   - name: product-owner
     role: product-management
     kind: codex
