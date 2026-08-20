@@ -368,7 +368,7 @@ func (s *Store) CreateProviderAttempt(_ context.Context, start platform.AttemptS
 	if record.RouteID == "" || record.BoundTargetID == "" || record.BoundTargetID != start.TargetID || start.AttemptNumber != record.AttemptCount+1 {
 		return platform.ErrConflict
 	}
-	s.attempts[start.ID] = platform.ProviderAttempt{ID: start.ID, InferenceRequestID: start.InferenceRequestID, TargetID: start.TargetID, AttemptNumber: start.AttemptNumber, StartedAt: start.StartedAt, Status: "in_progress"}
+	s.attempts[start.ID] = platform.ProviderAttempt{ID: start.ID, InferenceRequestID: start.InferenceRequestID, TargetID: start.TargetID, AttemptNumber: start.AttemptNumber, StartedAt: start.StartedAt, Status: "in_progress", UsageFinality: "unknown"}
 	record.AttemptCount++
 	s.requests[record.ID] = record
 	return nil
@@ -386,6 +386,11 @@ func (s *Store) CompleteProviderAttempt(_ context.Context, finish platform.Attem
 	}
 	attempt.CompletedAt, attempt.Status, attempt.ProviderHTTPStatus, attempt.ErrorClass = timePointer(finish.CompletedAt), finish.Status, finish.ProviderHTTPStatus, finish.ErrorClass
 	attempt.Duration, attempt.ProviderRequestID = finish.Duration, finish.ProviderRequestID
+	attempt.Usage = finish.Usage
+	if finish.UsageFinality == "" {
+		finish.UsageFinality = "unknown"
+	}
+	attempt.UsageFinality = finish.UsageFinality
 	s.attempts[finish.ID] = attempt
 	return nil
 }

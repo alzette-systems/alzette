@@ -15,21 +15,26 @@ const (
 	maxTools          = 128
 	maxToolCalls      = 128
 	maxToolNameLength = 64
+	maxReasoningBytes = 256 << 10
 )
 
 // ChatRequest is the deliberately bounded OpenAI Chat Completions request
 // subset accepted by the gateway. Routing and provider configuration are not
 // represented here: those values always come from the authenticated route.
 type ChatRequest struct {
-	Model         string          `json:"model"`
-	Messages      []Message       `json:"messages"`
-	Stream        *bool           `json:"stream,omitempty"`
-	StreamOptions *StreamOptions  `json:"stream_options,omitempty"`
-	Temperature   *float64        `json:"temperature,omitempty"`
-	TopP          *float64        `json:"top_p,omitempty"`
-	MaxTokens     *int            `json:"max_tokens,omitempty"`
-	Tools         []Tool          `json:"tools,omitempty"`
-	ToolChoice    json.RawMessage `json:"tool_choice,omitempty"`
+	Model               string          `json:"model"`
+	Messages            []Message       `json:"messages"`
+	Stream              *bool           `json:"stream,omitempty"`
+	StreamOptions       *StreamOptions  `json:"stream_options,omitempty"`
+	Temperature         *float64        `json:"temperature,omitempty"`
+	TopP                *float64        `json:"top_p,omitempty"`
+	MaxTokens           *int            `json:"max_tokens,omitempty"`
+	MaxCompletionTokens *int            `json:"max_completion_tokens,omitempty"`
+	ReasoningEffort     string          `json:"reasoning_effort,omitempty"`
+	Stop                json.RawMessage `json:"stop,omitempty"`
+	ParallelToolCalls   *bool           `json:"parallel_tool_calls,omitempty"`
+	Tools               []Tool          `json:"tools,omitempty"`
+	ToolChoice          json.RawMessage `json:"tool_choice,omitempty"`
 }
 
 type StreamOptions struct {
@@ -37,11 +42,12 @@ type StreamOptions struct {
 }
 
 type Message struct {
-	Role       string          `json:"role"`
-	Content    json.RawMessage `json:"content"`
-	ToolCalls  []ToolCall      `json:"tool_calls,omitempty"`
-	ToolCallID string          `json:"tool_call_id,omitempty"`
-	Name       string          `json:"name,omitempty"`
+	Role             string          `json:"role"`
+	Content          json.RawMessage `json:"content"`
+	ReasoningContent *string         `json:"reasoning_content,omitempty"`
+	ToolCalls        []ToolCall      `json:"tool_calls,omitempty"`
+	ToolCallID       string          `json:"tool_call_id,omitempty"`
+	Name             string          `json:"name,omitempty"`
 }
 
 type ToolCall struct {
@@ -99,8 +105,21 @@ func (r ChatRequest) validate() *requestError {
 	if r.TopP != nil && (*r.TopP < 0 || *r.TopP > 1) {
 		return &requestError{http.StatusBadRequest, "invalid_top_p", "top_p must be between 0 and 1"}
 	}
-	if r.MaxTokens != nil && (*r.MaxTokens < 1 || *r.MaxTokens > 1000000) {
+	if r.MaxTokens != nil && r.MaxCompletionTokens != nil {
+		return &requestError{http.StatusBadRequest, "invalid_max_tokens", "max_tokens and max_completion_tokens cannot both be supplied"}
+	}
+	if value := r.maxOutputTokens(); value != nil && (*value < 1 || *value > 1000000) {
 		return &requestError{http.StatusBadRequest, "invalid_max_tokens", "max_tokens is outside the supported range"}
+	}
+	if r.ReasoningEffort != "" {
+		switch r.ReasoningEffort {
+		case "none", "minimal", "low", "medium", "high", "xhigh":
+		default:
+			return &requestError{http.StatusBadRequest, "invalid_reasoning_effort", "reasoning_effort is outside the supported range"}
+		}
+	}
+	if validation := validateStop(r.Stop); validation != nil {
+		return validation
 	}
 	if r.StreamOptions != nil {
 		if !r.streaming() || r.StreamOptions.IncludeUsage == nil {
@@ -117,6 +136,36 @@ func (r ChatRequest) validate() *requestError {
 	return nil
 }
 
+func (r ChatRequest) maxOutputTokens() *int {
+	if r.MaxCompletionTokens != nil {
+		return r.MaxCompletionTokens
+	}
+	return r.MaxTokens
+}
+
+func validateStop(raw json.RawMessage) *requestError {
+	if len(raw) == 0 {
+		return nil
+	}
+	var single string
+	if json.Unmarshal(raw, &single) == nil {
+		if single == "" || len(single) > 1024 {
+			return &requestError{http.StatusBadRequest, "invalid_stop", "stop must contain bounded non-empty text"}
+		}
+		return nil
+	}
+	var values []string
+	if json.Unmarshal(raw, &values) != nil || len(values) == 0 || len(values) > 16 {
+		return &requestError{http.StatusBadRequest, "invalid_stop", "stop must be text or an array of up to 16 strings"}
+	}
+	for _, value := range values {
+		if value == "" || len(value) > 1024 {
+			return &requestError{http.StatusBadRequest, "invalid_stop", "stop must contain bounded non-empty text"}
+		}
+	}
+	return nil
+}
+
 func validateMessages(messages []Message) *requestError {
 	outstanding := make(map[string]string)
 	seenCalls := make(map[string]struct{})
@@ -126,7 +175,7 @@ func validateMessages(messages []Message) *requestError {
 		}
 		switch message.Role {
 		case "system", "user":
-			if len(message.ToolCalls) != 0 || message.ToolCallID != "" || message.Name != "" {
+			if message.ReasoningContent != nil || len(message.ToolCalls) != 0 || message.ToolCallID != "" || message.Name != "" {
 				return invalidMessages("message fields are outside the supported text subset")
 			}
 			if ok, err := validTextContent(message.Content, false, true); err != nil || !ok {
@@ -135,6 +184,9 @@ func validateMessages(messages []Message) *requestError {
 		case "assistant":
 			if message.ToolCallID != "" || message.Name != "" || len(message.ToolCalls) > maxToolCalls {
 				return invalidMessages("assistant message fields are outside the supported subset")
+			}
+			if message.ReasoningContent != nil && len(*message.ReasoningContent) > maxReasoningBytes {
+				return invalidMessages("assistant reasoning content exceeds the supported limit")
 			}
 			hasText, err := validTextContent(message.Content, len(message.ToolCalls) > 0, true)
 			if err != nil || (!hasText && len(message.ToolCalls) == 0) {
@@ -154,7 +206,7 @@ func validateMessages(messages []Message) *requestError {
 				outstanding[call.ID] = call.Function.Name
 			}
 		case "tool":
-			if len(message.ToolCalls) != 0 || !validToolCallID(message.ToolCallID) {
+			if message.ReasoningContent != nil || len(message.ToolCalls) != 0 || !validToolCallID(message.ToolCallID) {
 				return invalidMessages("tool messages require a valid tool_call_id")
 			}
 			expectedName, exists := outstanding[message.ToolCallID]

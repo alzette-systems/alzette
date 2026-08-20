@@ -21,6 +21,7 @@ import (
 
 	"alzette/internal/api"
 	"alzette/internal/credentials"
+	"alzette/internal/inference"
 	"alzette/internal/platform"
 	"alzette/internal/secrets"
 	"alzette/internal/store/memory"
@@ -832,6 +833,13 @@ func TestGatewayContractLimitsAndMalformedUpstream(t *testing.T) {
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
+func TestPlatformUsageTreatsEmptyBifrostEvidenceAsUnknown(t *testing.T) {
+	usage, finality := platformUsage(&inference.Usage{}, "partial")
+	if finality != "unknown" || usage.Normalization != "" {
+		t.Fatalf("empty usage=%#v finality=%q", usage, finality)
+	}
+}
+
 func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return function(request)
 }
@@ -844,6 +852,7 @@ func TestGatewayRetriesDisconnectedUpstreamAndBoundsResponses(t *testing.T) {
 	disconnected, _ := New(Config{
 		Store:                fixture.store,
 		AllowInsecureTargets: true,
+		legacyHTTPForTests:   true,
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			calls.Add(1)
 			return nil, io.ErrUnexpectedEOF
@@ -1014,7 +1023,7 @@ func (*truncatedResponseBody) Close() error { return nil }
 func TestGatewayCancellationIsNotRetried(t *testing.T) {
 	fixture := newFixture(t, func(w http.ResponseWriter, r *http.Request) {}, nil)
 	started := make(chan struct{})
-	handler, _ := New(Config{Store: fixture.store, AllowInsecureTargets: true, HTTPClient: &http.Client{Transport: blockingTransport{started: started}}, SecretLookup: func(string) (string, bool) { return "provider-secret", true }})
+	handler, _ := New(Config{Store: fixture.store, AllowInsecureTargets: true, legacyHTTPForTests: true, HTTPClient: &http.Client{Transport: blockingTransport{started: started}}, SecretLookup: func(string) (string, bool) { return "provider-secret", true }})
 	ctx, cancel := context.WithCancel(context.Background())
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(validBody("safe-chat", "cancel"))).WithContext(ctx)
 	req.Header.Set("Content-Type", "application/json")
@@ -1050,6 +1059,7 @@ func TestGatewayResponseBodyClientCancellationIsNotTargetFailure(t *testing.T) {
 	handler, err := New(Config{
 		Store:                fixture.store,
 		AllowInsecureTargets: true,
+		legacyHTTPForTests:   true,
 		HTTPClient:           client,
 		SecretLookup:         func(string) (string, bool) { return "provider-secret", true },
 		RetryBaseDelay:       time.Millisecond,
@@ -1122,6 +1132,7 @@ func TestGatewayResponseBodyTargetDeadlineRetriesBeforeOutput(t *testing.T) {
 	handler, err := New(Config{
 		Store:                fixture.store,
 		AllowInsecureTargets: true,
+		legacyHTTPForTests:   true,
 		HTTPClient:           client,
 		SecretLookup:         func(string) (string, bool) { return "provider-secret", true },
 		RetryBaseDelay:       time.Millisecond,
@@ -1163,6 +1174,7 @@ func TestGatewayTruncatedResponseBodyFailsClosedWithoutRetry(t *testing.T) {
 	handler, err := New(Config{
 		Store:                fixture.store,
 		AllowInsecureTargets: true,
+		legacyHTTPForTests:   true,
 		HTTPClient:           client,
 		SecretLookup:         func(string) (string, bool) { return "provider-secret", true },
 		RetryBaseDelay:       time.Millisecond,

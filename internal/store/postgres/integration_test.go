@@ -161,15 +161,30 @@ func TestPostgresMigrationProvisioningIsolationAndAccounting(t *testing.T) {
 		}
 		status, class := "failed", "upstream_timeout"
 		providerStatus := 0
+		attemptUsage := platform.TokenUsage{}
+		attemptFinality := "unknown"
+		billedInput := int64(2)
+		attemptUsage = platform.TokenUsage{InputTokens: &billedInput, Normalization: "bifrost-core/v1.7.13"}
+		attemptFinality = "partial"
 		if number == 2 {
 			status, class, providerStatus = "succeeded", "", httpStatusOK
 		}
-		if err := fixture.store.CompleteProviderAttempt(ctx, platform.AttemptFinish{ID: attemptID, CompletedAt: time.Now().UTC(), Status: status, ProviderHTTPStatus: providerStatus, ErrorClass: class, Duration: 10 * time.Millisecond}); err != nil {
+		if err := fixture.store.CompleteProviderAttempt(ctx, platform.AttemptFinish{ID: attemptID, CompletedAt: time.Now().UTC(), Status: status, ProviderHTTPStatus: providerStatus, ErrorClass: class, Duration: 10 * time.Millisecond, Usage: attemptUsage, UsageFinality: attemptFinality}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	input, output := int64(12), int64(4)
-	if err := fixture.store.CompleteInferenceRequest(ctx, platform.RequestFinish{ID: requestID, CompletedAt: time.Now().UTC(), Status: "succeeded", HTTPStatus: httpStatusOK, ExecutedModel: "provider/model", ProviderRequestID: "provider-id", Duration: 25 * time.Millisecond, Usage: platform.TokenUsage{InputTokens: &input, OutputTokens: &output}, UsageFinality: "final"}); err != nil {
+	input, output, total := int64(12), int64(4), int64(16)
+	cachedRead, cachedWrite, cachedWrite5m, cachedWrite1h := int64(3), int64(2), int64(1), int64(1)
+	reasoning, textInput, audioInput, imageInput := int64(2), int64(7), int64(1), int64(1)
+	usage := platform.TokenUsage{
+		InputTokens: &input, OutputTokens: &output, TotalTokens: &total,
+		CachedTokens: &cachedRead, CachedWriteTokens: &cachedWrite,
+		CachedWriteTokens5m: &cachedWrite5m, CachedWriteTokens1h: &cachedWrite1h,
+		ReasoningTokens: &reasoning, TextInputTokens: &textInput,
+		AudioInputTokens: &audioInput, ImageInputTokens: &imageInput,
+		Normalization: "bifrost-core/v1.7.13",
+	}
+	if err := fixture.store.CompleteInferenceRequest(ctx, platform.RequestFinish{ID: requestID, CompletedAt: time.Now().UTC(), Status: "succeeded", HTTPStatus: httpStatusOK, ExecutedModel: "provider/model", ProviderRequestID: "provider-id", Duration: 25 * time.Millisecond, Usage: usage, UsageFinality: "final"}); err != nil {
 		t.Fatal(err)
 	}
 	pageA, err := fixture.store.ListInferenceRequests(ctx, principalA, platform.UsageFilter{From: started.Add(-time.Minute), To: time.Now().Add(time.Minute), Limit: 10})
@@ -178,6 +193,29 @@ func TestPostgresMigrationProvisioningIsolationAndAccounting(t *testing.T) {
 	}
 	if len(pageA.Requests) != 1 || pageA.Requests[0].AttemptCount != 2 {
 		t.Fatalf("tenant A requests=%#v", pageA)
+	}
+	storedUsage := pageA.Requests[0].Usage
+	if storedUsage.InputTokens == nil || *storedUsage.InputTokens != input ||
+		storedUsage.OutputTokens == nil || *storedUsage.OutputTokens != output ||
+		storedUsage.TotalTokens == nil || *storedUsage.TotalTokens != total ||
+		storedUsage.CachedTokens == nil || *storedUsage.CachedTokens != cachedRead ||
+		storedUsage.CachedWriteTokens == nil || *storedUsage.CachedWriteTokens != cachedWrite ||
+		storedUsage.CachedWriteTokens5m == nil || *storedUsage.CachedWriteTokens5m != cachedWrite5m ||
+		storedUsage.CachedWriteTokens1h == nil || *storedUsage.CachedWriteTokens1h != cachedWrite1h ||
+		storedUsage.ReasoningTokens == nil || *storedUsage.ReasoningTokens != reasoning ||
+		storedUsage.TextInputTokens == nil || *storedUsage.TextInputTokens != textInput ||
+		storedUsage.AudioInputTokens == nil || *storedUsage.AudioInputTokens != audioInput ||
+		storedUsage.ImageInputTokens == nil || *storedUsage.ImageInputTokens != imageInput ||
+		storedUsage.Normalization != "bifrost-core/v1.7.13" {
+		t.Fatalf("stored detailed usage=%#v", storedUsage)
+	}
+	var failedAttemptInput sql.NullInt64
+	var failedAttemptFinality, failedAttemptNormalization string
+	if err := fixture.db.QueryRow(`SELECT input_tokens,usage_finality,usage_normalization_version FROM provider_attempts WHERE id='att_integration_1'`).Scan(&failedAttemptInput, &failedAttemptFinality, &failedAttemptNormalization); err != nil {
+		t.Fatal(err)
+	}
+	if !failedAttemptInput.Valid || failedAttemptInput.Int64 != 2 || failedAttemptFinality != "partial" || failedAttemptNormalization != "bifrost-core/v1.7.13" {
+		t.Fatalf("failed attempt accounting input=%v finality=%q normalization=%q", failedAttemptInput, failedAttemptFinality, failedAttemptNormalization)
 	}
 	pageB, err := fixture.store.ListInferenceRequests(ctx, principalB, platform.UsageFilter{From: started.Add(-time.Minute), To: time.Now().Add(time.Minute), Limit: 10})
 	if err != nil {
@@ -343,7 +381,7 @@ func TestPostgresDisabledTargetFailsClosedBeforeProviderAttempt(t *testing.T) {
 	if _, err := fixture.db.Exec(`UPDATE inference_targets SET enabled=false WHERE id=$1`, provisioned.TargetID); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := gateway.New(gateway.Config{Store: fixture.store, HTTPClient: upstream.Client(), SecretLookup: func(string) (string, bool) { return "provider-secret", true }})
+	handler, err := gateway.New(gateway.Config{Store: fixture.store, AllowInsecureTargets: true, SecretLookup: func(string) (string, bool) { return "provider-secret", true }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -668,6 +706,19 @@ func TestPostgresSelfServiceCatalogueAndCapacityContracts(t *testing.T) {
 
 func TestPostgresMigrationDownIsSafeInIsolatedSchema(t *testing.T) {
 	fixture := newDatabaseFixture(t)
+	if _, err := fixture.db.Exec(migrationScript(t, "0015_bifrost_usage_accounting.down.sql")); err != nil {
+		t.Fatal(err)
+	}
+	var bifrostUsageColumns int
+	if err := fixture.db.QueryRow(`SELECT count(*) FROM information_schema.columns
+		WHERE table_schema=current_schema()
+		  AND table_name IN ('inference_requests','provider_attempts')
+		  AND column_name='usage_normalization_version'`).Scan(&bifrostUsageColumns); err != nil {
+		t.Fatal(err)
+	}
+	if bifrostUsageColumns != 0 {
+		t.Fatalf("0015 down left %d usage normalization columns", bifrostUsageColumns)
+	}
 	if _, err := fixture.db.Exec(migrationScript(t, "0014_human_agent_access.down.sql")); err != nil {
 		t.Fatal(err)
 	}
@@ -791,10 +842,10 @@ func TestPostgresMigrationDownIsSafeInIsolatedSchema(t *testing.T) {
 		t.Fatal("migration did not reapply after down")
 	}
 	var versions int
-	if err := fixture.db.QueryRow(`SELECT count(*) FROM schema_migrations WHERE version IN ('0001_openrouter_poc','0002_ledger_integrity','0003_route_binding_observations','0004_slice0_contract_guards','0005_portal_identity_and_service_plans','0006_usage_rollups_and_target_probes','0007_slice2_contract_closure','0008_self_service_catalogue','0009_endpoint_billing_control_plane','0010_capacity_request_intent','0011_endpoint_team_size','0012_company_people_groups')`).Scan(&versions); err != nil {
+	if err := fixture.db.QueryRow(`SELECT count(*) FROM schema_migrations`).Scan(&versions); err != nil {
 		t.Fatal(err)
 	}
-	if versions != 12 {
+	if versions != 15 {
 		t.Fatalf("reapplied migration versions=%d", versions)
 	}
 }
@@ -835,10 +886,14 @@ func TestPostgresMigrationUpgradesExisting0001Schema(t *testing.T) {
 		t.Fatal(err)
 	}
 	completed := time.Now().UTC()
-	if err := fixture.store.CompleteProviderAttempt(ctx, platform.AttemptFinish{ID: "att_upgrade_existing", CompletedAt: completed, Status: "succeeded", ProviderHTTPStatus: http.StatusOK, Duration: time.Millisecond}); err != nil {
+	if _, err := fixture.db.Exec(`UPDATE provider_attempts
+		SET completed_at=$2,status='succeeded',provider_http_status=$3,duration_ms=1
+		WHERE id=$1`, "att_upgrade_existing", completed, http.StatusOK); err != nil {
 		t.Fatal(err)
 	}
-	if err := fixture.store.CompleteInferenceRequest(ctx, platform.RequestFinish{ID: "req_upgrade_existing", CompletedAt: completed, Status: "succeeded", HTTPStatus: http.StatusOK, UsageFinality: "unknown"}); err != nil {
+	if _, err := fixture.db.Exec(`UPDATE inference_requests
+		SET completed_at=$2,status='succeeded',http_status=$3,usage_finality='unknown'
+		WHERE id=$1`, "req_upgrade_existing", completed, http.StatusOK); err != nil {
 		t.Fatal(err)
 	}
 	replacementSpec := databaseSpec("Upgrade Tenant", "upgrade-tenant")
@@ -993,10 +1048,14 @@ func TestPostgresMigrationUpgradesExisting0002RouteHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	completed := time.Now().UTC()
-	if err := fixture.store.CompleteProviderAttempt(ctx, platform.AttemptFinish{ID: "att_existing_0002_history", CompletedAt: completed, Status: "succeeded", ProviderHTTPStatus: http.StatusOK, Duration: time.Millisecond}); err != nil {
+	if _, err := fixture.db.Exec(`UPDATE provider_attempts
+		SET completed_at=$2,status='succeeded',provider_http_status=$3,duration_ms=1
+		WHERE id=$1`, "att_existing_0002_history", completed, http.StatusOK); err != nil {
 		t.Fatal(err)
 	}
-	if err := fixture.store.CompleteInferenceRequest(ctx, platform.RequestFinish{ID: requestID, CompletedAt: completed, Status: "succeeded", HTTPStatus: http.StatusOK, UsageFinality: "unknown"}); err != nil {
+	if _, err := fixture.db.Exec(`UPDATE inference_requests
+		SET completed_at=$2,status='succeeded',http_status=$3,usage_finality='unknown'
+		WHERE id=$1`, requestID, completed, http.StatusOK); err != nil {
 		t.Fatal(err)
 	}
 	replacement := base
@@ -1026,7 +1085,9 @@ func TestPostgresMigrationUpgradesExisting0002RouteHistory(t *testing.T) {
 	if err := fixture.store.CreateInferenceRequest(ctx, platform.RequestStart{ID: "req_existing_0002_blocked", Principal: principal, ModelAlias: "not-authorised", StartedAt: time.Now().UTC()}); err != nil {
 		t.Fatal(err)
 	}
-	if err := fixture.store.CompleteInferenceRequest(ctx, platform.RequestFinish{ID: "req_existing_0002_blocked", CompletedAt: time.Now().UTC(), Status: "blocked", HTTPStatus: http.StatusNotFound, ErrorClass: "model_not_authorised", UsageFinality: "unknown"}); err != nil {
+	if _, err := fixture.db.Exec(`UPDATE inference_requests
+		SET completed_at=$2,status='blocked',http_status=$3,error_class='model_not_authorised',usage_finality='unknown'
+		WHERE id=$1`, "req_existing_0002_blocked", time.Now().UTC(), http.StatusNotFound); err != nil {
 		t.Fatal("0002 blocked request could not complete without a route")
 	}
 
@@ -1816,7 +1877,7 @@ func TestPostgresProvisionAndResolveUseRouteBeforeTargetLockOrder(t *testing.T) 
 func TestPostgresBackedHTTPVerticalSlice(t *testing.T) {
 	fixture := newDatabaseFixture(t)
 	var upstreamCalls atomic.Int32
-	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if upstreamCalls.Add(1) == 1 {
 			w.Header().Set("Retry-After", "0")
 			http.Error(w, "temporary provider detail", http.StatusServiceUnavailable)
@@ -1827,12 +1888,23 @@ func TestPostgresBackedHTTPVerticalSlice(t *testing.T) {
 	defer upstream.Close()
 
 	specA := databaseSpec("Tenant A", "tenant-a")
-	specA.TargetBaseURL = upstream.URL + "/api/v1"
+	specA.TargetBaseURL = "https://bifrost-buffered-fixture.invalid/api/v1"
 	provisionedA, err := fixture.store.Provision(context.Background(), specA)
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := gateway.New(gateway.Config{Store: fixture.store, HTTPClient: upstream.Client(), SecretLookup: func(string) (string, bool) { return "provider-secret", true }, RetryBaseDelay: time.Millisecond})
+	specB := specA
+	specB.OrganisationName, specB.OrganisationSlug = "Tenant B", "tenant-b"
+	provisionedB, err := fixture.store.Provision(context.Background(), specB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Production provisioning requires HTTPS. This deterministic integration
+	// fixture rewrites only its isolated target to the local HTTP Bifrost server.
+	if _, err := fixture.db.Exec(`UPDATE inference_targets SET base_url=$2 WHERE id=$1`, provisionedA.TargetID, upstream.URL+"/api/v1"); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := gateway.New(gateway.Config{Store: fixture.store, AllowInsecureTargets: true, SecretLookup: func(string) (string, bool) { return "provider-secret", true }, RetryBaseDelay: time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1881,12 +1953,6 @@ func TestPostgresBackedHTTPVerticalSlice(t *testing.T) {
 		}
 	}
 
-	specB := specA
-	specB.OrganisationName, specB.OrganisationSlug = "Tenant B", "tenant-b"
-	provisionedB, err := fixture.store.Provision(context.Background(), specB)
-	if err != nil {
-		t.Fatal(err)
-	}
 	tenantBRequest := httptest.NewRequest(http.MethodGet, "/api/v1/usage", nil)
 	tenantBRequest.Header.Set("Authorization", "Bearer "+provisionedB.APIKey)
 	tenantBResponse := httptest.NewRecorder()
@@ -1934,7 +2000,7 @@ func TestPostgresBackedStreamingAgentAccountingAndIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := gateway.New(gateway.Config{Store: fixture.store, HTTPClient: upstream.Client(), SecretLookup: func(string) (string, bool) { return "provider-secret", true }, RetryBaseDelay: time.Millisecond})
+	handler, err := gateway.New(gateway.Config{Store: fixture.store, HTTPClient: upstream.Client(), AllowInsecureTargets: true, SecretLookup: func(string) (string, bool) { return "provider-secret", true }, RetryBaseDelay: time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}

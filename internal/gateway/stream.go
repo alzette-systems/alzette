@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"alzette/internal/api"
 	"alzette/internal/platform"
 )
 
@@ -50,20 +49,21 @@ func (sink *streamSink) write(body []byte) error {
 	return nil
 }
 
-func (g *Gateway) serveStreaming(w http.ResponseWriter, r *http.Request, requestID string, route platform.Route, secret string, upstreamBody []byte, finish requestFinisher) {
+func (g *Gateway) serveStreaming(w http.ResponseWriter, r *http.Request, requestID, publicModel string, protocol wireProtocol, route platform.Route, secret string, upstreamBody []byte, finish requestFinisher) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		if !finish("failed", http.StatusInternalServerError, "streaming_unavailable", "", "", "unknown", platform.TokenUsage{}) {
-			api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+			writeProtocolError(w, protocol, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 			return
 		}
-		api.WriteError(w, http.StatusInternalServerError, "streaming_unavailable", "api_error", "response streaming is unavailable", requestID)
+		writeProtocolError(w, protocol, http.StatusInternalServerError, "streaming_unavailable", "api_error", "response streaming is unavailable", requestID)
 		return
 	}
 	sink := &streamSink{writer: w, flusher: flusher}
+	encoder := newProtocolStreamEncoder(protocol, requestID, publicModel, g.clock().UTC())
 	var terminal attemptResult
 	for attemptNumber := 1; attemptNumber <= route.Target.MaxAttempts; attemptNumber++ {
-		terminal = g.performStreamingAttempt(r.Context(), requestID, route, secret, upstreamBody, attemptNumber, sink)
+		terminal = g.performStreamingAttempt(r.Context(), requestID, route, secret, upstreamBody, attemptNumber, sink, encoder)
 		if terminal.success || sink.committed || !terminal.retryable || attemptNumber == route.Target.MaxAttempts {
 			break
 		}
@@ -84,7 +84,7 @@ func (g *Gateway) serveStreaming(w http.ResponseWriter, r *http.Request, request
 			// The response may already be committed. Ending the stream without
 			// synthesising a success or a provider error is the only safe action.
 			if !sink.committed {
-				api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+				writeProtocolError(w, protocol, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 			}
 			return
 		}
@@ -108,7 +108,7 @@ func (g *Gateway) serveStreaming(w http.ResponseWriter, r *http.Request, request
 	// missing usage remains unknown rather than being guessed.
 	if !finish(status, terminal.clientStatus, terminal.class, "", terminal.providerID, "unknown", platform.TokenUsage{}) {
 		if !sink.committed {
-			api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+			writeProtocolError(w, protocol, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 		}
 		return
 	}
@@ -123,10 +123,13 @@ func (g *Gateway) serveStreaming(w http.ResponseWriter, r *http.Request, request
 	if terminal.retryAfterHeader != "" {
 		w.Header().Set("Retry-After", terminal.retryAfterHeader)
 	}
-	api.WriteError(w, terminal.clientStatus, terminal.class, "upstream_error", terminal.message, requestID)
+	writeProtocolError(w, protocol, terminal.clientStatus, terminal.class, "upstream_error", terminal.message, requestID)
 }
 
-func (g *Gateway) performStreamingAttempt(parent context.Context, requestID string, route platform.Route, secret string, body []byte, number int, sink *streamSink) attemptResult {
+func (g *Gateway) performStreamingAttempt(parent context.Context, requestID string, route platform.Route, secret string, body []byte, number int, sink *streamSink, encoder protocolStreamEncoder) attemptResult {
+	// Bifrost v1.7.13's direct fasthttp stream cancellation path races while
+	// releasing its request stream. Keep Alzette's existing net/http SSE path
+	// until the pinned dependency passes this package's cancellation race gate.
 	attemptID, err := g.newID("att")
 	if err != nil {
 		return attemptResult{class: "ledger_error", clientStatus: http.StatusInternalServerError, message: "request attempt could not be initialised"}
@@ -236,7 +239,9 @@ func (g *Gateway) performStreamingAttempt(parent context.Context, requestID stri
 			return attemptResult{retryable: !sink.committed, class: "upstream_transport", clientStatus: http.StatusBadGateway, message: "upstream inference stream ended before completion", providerID: state.providerID}
 		}
 		if !frame.hasData {
-			_, _ = pending.Write(frame.raw)
+			if encoder == nil {
+				_, _ = pending.Write(frame.raw)
+			}
 			continue
 		}
 		if frame.data == "[DONE]" {
@@ -246,7 +251,18 @@ func (g *Gateway) performStreamingAttempt(parent context.Context, requestID stri
 				}
 				return attemptResult{class: "invalid_upstream_response", clientStatus: http.StatusBadGateway, message: "upstream inference stream ended without a terminal choice", providerID: state.providerID}
 			}
-			pending.Write(frame.raw)
+			if encoder == nil {
+				pending.Write(frame.raw)
+			} else {
+				translated, translateErr := encoder.Finish(state)
+				if translateErr != nil {
+					if finish("failed", "invalid_upstream_response", state.providerID, response.StatusCode) != nil {
+						return ledgerFailure()
+					}
+					return attemptResult{class: "invalid_upstream_response", clientStatus: http.StatusBadGateway, message: "upstream inference stream could not be represented in the requested API", providerID: state.providerID}
+				}
+				pending.Write(translated)
+			}
 			if err := sink.write(pending.Bytes()); err != nil {
 				if finish("cancelled", "client_cancelled", state.providerID, response.StatusCode) != nil {
 					return ledgerFailure()
@@ -264,7 +280,18 @@ func (g *Gateway) performStreamingAttempt(parent context.Context, requestID stri
 			}
 			return attemptResult{class: "invalid_upstream_response", clientStatus: http.StatusBadGateway, message: "upstream inference returned an invalid streaming response", providerID: state.providerID}
 		}
-		pending.Write(frame.raw)
+		if encoder == nil {
+			pending.Write(frame.raw)
+		} else {
+			translated, translateErr := encoder.Encode(frame.data)
+			if translateErr != nil {
+				if finish("failed", "invalid_upstream_response", state.providerID, response.StatusCode) != nil {
+					return ledgerFailure()
+				}
+				return attemptResult{class: "invalid_upstream_response", clientStatus: http.StatusBadGateway, message: "upstream inference stream could not be represented in the requested API", providerID: state.providerID}
+			}
+			pending.Write(translated)
+		}
 		if err := sink.write(pending.Bytes()); err != nil {
 			if finish("cancelled", "client_cancelled", state.providerID, response.StatusCode) != nil {
 				return ledgerFailure()
@@ -347,6 +374,7 @@ type providerStreamChunk struct {
 }
 
 type providerStreamChoice struct {
+	Index        int             `json:"index"`
 	Delta        json.RawMessage `json:"delta"`
 	FinishReason json.RawMessage `json:"finish_reason"`
 }

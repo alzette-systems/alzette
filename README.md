@@ -270,13 +270,13 @@ docker compose run --rm gateway key revoke --prefix alz_k_exampleprefix
 
 ## API contracts
 
-The inference and machine control APIs use `Authorization: Bearer <Alzette API key>`. Error bodies are stable JSON envelopes with a server-generated `request_id`; the same ID is returned in `X-Alzette-Request-ID` and `X-Request-ID`.
+The inference and machine control APIs use `Authorization: Bearer <Alzette API key>`. The Anthropic Messages adapter also accepts exactly one `X-Api-Key: <Alzette API key>` for SDK compatibility; mixed or duplicate credentials fail closed. Error bodies are stable JSON envelopes with a server-generated `request_id`; the same ID is returned in `X-Alzette-Request-ID` and `X-Request-ID`. Anthropic requests receive the corresponding Anthropic error envelope.
 
 ### `POST /v1/chat/completions`
 
-Supported request fields are `model`, `messages`, `stream`, `stream_options.include_usage`, `temperature`, `top_p`, `max_tokens`, `tools`, and `tool_choice`. Text messages use `system`, `user`, and `assistant` roles with either a string or text-only `{type:"text",text:"..."}` parts. The agent subset also accepts function-tool definitions, assistant `tool_calls`, and immediately following `role:"tool"` results with matching IDs. `tool_choice` may be `auto`, `none`, `required`, or a declared named function. Function names, call IDs, tool arguments, and object JSON Schemas are bounded and validated.
+Supported request fields are `model`, `messages`, `stream`, `stream_options.include_usage`, `temperature`, `top_p`, `max_tokens`, `reasoning_effort`, `stop`, `parallel_tool_calls`, `tools`, and `tool_choice`. Text messages use `system`, `user`, and `assistant` roles with either a string or text-only `{type:"text",text:"..."}` parts. The agent subset also accepts function-tool definitions, assistant `tool_calls`, and immediately following `role:"tool"` results with matching IDs. `tool_choice` may be `auto`, `none`, `required`, or a declared named function. Function names, call IDs, tool arguments, stop sequences, and object JSON Schemas are bounded and validated.
 
-Unknown top-level or nested fields and all query parameters are rejected, so request manipulation cannot choose an upstream URL, tenant, project, environment, provider model, or provider credential. Image/audio content, custom or grammar tools, client reasoning extensions, `max_completion_tokens`, structured-output controls, embeddings, and `/v1/models` are outside this tested subset and fail closed rather than being dropped.
+Unknown top-level or nested fields and all query parameters are rejected, so request manipulation cannot choose an upstream URL, tenant, project, environment, provider model, or provider credential. Image/audio content, custom or grammar tools, unrecognised reasoning extensions, `max_completion_tokens`, structured-output controls, embeddings, and `/v1/models` are outside this tested subset and fail closed rather than being dropped.
 
 ```bash
 curl http://localhost:8080/v1/chat/completions \
@@ -293,7 +293,17 @@ With `stream:true`, the configured target must return `text/event-stream`. Alzet
 
 The gateway buffers the bounded non-streaming provider response before writing customer bytes. For either mode, timeouts, connection failures, `429`, and `503` may be retried only before the first downstream response write. Once an SSE frame is attempted, cancellation, timeout, malformed tail, or upstream disconnect ends that logical request without replay; the partial stream has no synthetic `[DONE]` or appended JSON error. Caller cancellation is recorded as `client_cancelled`, is not target-health evidence, and closes the upstream request context. `Retry-After` is honored within the five-second safety cap. Each retry creates a provider-attempt row while customer consumption remains one logical request. Provider error bodies, URLs, credentials, prompts, and outputs are never persisted or returned in normalized errors.
 
-This contract is exercised with the Pi 0.84.2 `openai-completions` request shape: unconditional streaming, `max_tokens`, function tools/tool choice, streamed tool-call arguments, and assistant-tool/tool-result history. That evidence establishes this agent subset only; other SDKs and provider-specific extensions require their own contract tests.
+This contract is exercised with the Pi 0.84.2 `openai-completions` request shape: unconditional streaming, `max_tokens`, function tools/tool choice, streamed tool-call arguments, and assistant-tool/tool-result history. DeepSeek assistant tool-call turns may replay bounded `reasoning_content`; the field is rejected on user, system, and tool messages. That evidence establishes this agent subset only; other SDKs and provider-specific extensions require their own contract tests.
+
+### `POST /v1/responses`
+
+The bounded Responses adapter supports text instructions/input, developer/system/user/assistant messages, function calls and results, function tools/tool choice, `max_output_tokens`, `temperature`, `top_p`, reasoning effort, buffered output, and Responses SSE event translation. It resolves and records the request through the same Alzette route and logical ledger as Chat Completions. Native Responses state, `previous_response_id`, stored responses, hosted tools, images, files, audio, and structured output are rejected rather than silently changed.
+
+### `POST /v1/messages`
+
+The bounded Anthropic Messages adapter supports text system/user/assistant content, `tool_use` and `tool_result`, function-tool schemas and choice, stop sequences, buffered output, and Anthropic Messages SSE event translation. The response exposes the public Alzette model alias, never the provider model. Extended thinking, computer use, prompt-caching semantics, images/files, and provider-hosted tools are not yet supported.
+
+Buffered provider execution embeds Bifrost Core v1.7.13 as a Go dependency. The current route schema selects Bifrost's OpenRouter provider; the bounded Responses and Messages ingress adapters still normalize into the validated Chat Completions representation before that call. Alzette remains the authority boundary: it authenticates, resolves the tenant-owned route and provider secret, applies retry and response limits, and records one logical request plus every provider attempt. Provider-reported input, output, total, cache-read, cache-write, five-minute/one-hour cache creation, reasoning, and text/audio/image input dimensions are stored separately with a normalization version; cache dimensions are never added again to the provider's input total. Streaming stays on Alzette's existing `net/http` SSE transport until Bifrost's pinned streaming cancellation path passes the race gate. See `THIRD_PARTY_NOTICES.md` for attribution and the exact boundary.
 
 ### Tenant control APIs
 

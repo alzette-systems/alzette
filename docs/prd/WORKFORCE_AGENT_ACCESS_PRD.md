@@ -10,7 +10,10 @@
 [`PORTAL_PRD.md`](PORTAL_PRD.md) defines the complete customer portal;
 [`ACCOUNT_ONBOARDING_PRD.md`](ACCOUNT_ONBOARDING_PRD.md) owns business signup,
 invitation, and membership state; [`POC_BOUNDARY.md`](../product/POC_BOUNDARY.md) remains
-the controlling statement of what the current software actually proves.
+the controlling statement of what the current software actually proves; and
+[`ALZETTE_CONNECT_PRD.md`](ALZETTE_CONNECT_PRD.md) owns the employee-facing CLI,
+desktop launcher, application adapters, packaging, and supported client/protocol
+matrix built on the access contract defined here.
 
 This document controls the narrower but critical path from an accepted
 employee invitation to authenticated use of an Alzette inference endpoint. If
@@ -117,8 +120,9 @@ The current repository already provides:
 - service accounts with one-time-reveal, hashed, scoped, expiring `alz_k_`
   API keys;
 - server-controlled model-alias routing to shared or dedicated targets;
-- a bounded OpenAI-compatible Chat Completions text/function-tool subset with
-  buffered and SSE responses;
+- bounded OpenAI Chat Completions, OpenAI Responses, and Anthropic Messages
+  text/function-tool subsets with buffered and SSE responses; Responses and
+  Messages translate through the same server-owned Chat execution path;
 - one immutable logical request separated from internal provider attempts;
 - tenant-safe usage, request, route, and portal APIs;
 - exact owner/employee/group authority plus group model grants in migration
@@ -643,6 +647,11 @@ Alzette without an adapter.
 
 ### 10.1 Product shape
 
+[`ALZETTE_CONNECT_PRD.md`](ALZETTE_CONNECT_PRD.md) defines the product name,
+desktop surface, application adapters, and migration from this prototype CLI.
+This section remains authoritative for credential custody, loopback proxy
+security, and launch-lifetime behavior.
+
 Ship a separate minimal Go binary from the same repository, tentatively:
 
 ```text
@@ -777,8 +786,10 @@ but P0 does not assume it.
 
 ### 11.1 Separate authenticators
 
-The gateway continues to accept exactly one `Authorization: Bearer` header and
-dispatches by strict credential prefix:
+The gateway accepts exactly one credential representation and dispatches by
+strict Alzette credential prefix. Chat Completions and Responses use
+`Authorization: Bearer`; Anthropic Messages accepts either that form or the
+SDK-compatible `X-Api-Key` form, never both:
 
 - `alz_k_`: existing service-account/API-key validation, unchanged;
 - `alz_u_`: new human-agent token validation.
@@ -1290,15 +1301,24 @@ recoverable plaintext or leaving an ambiguous credential valid.
 
 ### 14.3 Gateway
 
-The customer data-plane contract remains:
+The customer data-plane contracts are:
 
 ```text
 POST /v1/chat/completions
+POST /v1/responses
 Authorization: Bearer <alz_k_ service key OR alz_u_ human-agent token>
+
+POST /v1/messages
+Authorization: Bearer <alz_k_ service key OR alz_u_ human-agent token>
+OR X-Api-Key: <alz_k_ service key OR alz_u_ human-agent token>
 ```
 
-Error responses remain OpenAI-compatible and generic. Safe detailed identity
-errors belong to the local CLI/agent-identity API, not the public gateway.
+Chat Completions and Responses errors remain OpenAI-compatible and generic;
+Messages errors use the corresponding Anthropic envelope. Safe detailed
+identity errors belong to the local CLI/agent-identity API, not the public
+gateway. The adapters support bounded text and function-tool semantics only;
+stateful Responses, hosted tools, media/files, extended thinking, computer use,
+and prompt-cache semantics fail closed.
 
 ### 14.4 Operator commands
 

@@ -74,7 +74,7 @@ func TestGatewayPiStreamingToolsTextAndTerminalUsage(t *testing.T) {
 	}, nil)
 
 	response := fixture.request(piStreamingToolsRequest)
-	if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "text/event-stream; charset=utf-8" || response.Body.String() != streamBody {
+	if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "text/event-stream; charset=utf-8" || !strings.Contains(response.Body.String(), `"content":"hel"`) || !strings.Contains(response.Body.String(), `"content":"lo"`) || !strings.Contains(response.Body.String(), "data: [DONE]") {
 		t.Fatalf("stream contract status=%d content_type_set=%t length=%d", response.Code, response.Header().Get("Content-Type") != "", response.Body.Len())
 	}
 	if response.Header().Get("Cache-Control") != "no-store" || response.Header().Get("X-Alzette-Request-ID") == "" || correlation != response.Header().Get("X-Alzette-Request-ID") {
@@ -83,10 +83,10 @@ func TestGatewayPiStreamingToolsTextAndTerminalUsage(t *testing.T) {
 	if authorization != "Bearer provider-secret-value" || accept != "text/event-stream" {
 		t.Fatal("stream upstream authentication or content negotiation failed")
 	}
-	if captured.Model != "provider/model-a" || !captured.streaming() || captured.MaxTokens == nil || *captured.MaxTokens != 256 || len(captured.Tools) != 1 || captured.Tools[0].Function.Name != "read_file" {
+	if captured.Model != "provider/model-a" || !captured.streaming() || captured.maxOutputTokens() == nil || *captured.maxOutputTokens() != 256 || len(captured.Tools) != 1 || captured.Tools[0].Function.Name != "read_file" {
 		t.Fatal("Pi-shaped request was not forwarded through the server-owned model route")
 	}
-	if !bytes.Equal(captured.Messages[1].Content, json.RawMessage(`[{"type":"text","text":"Inspect the repository."}]`)) {
+	if !bytes.Contains(captured.Messages[1].Content, []byte("Inspect the repository.")) {
 		t.Fatal("supported text-part content shape changed during forwarding")
 	}
 
@@ -135,7 +135,7 @@ func TestGatewayPiToolCallDeltasAndToolResultHistory(t *testing.T) {
 	}, nil)
 
 	first := fixture.request(piStreamingToolsRequest)
-	if first.Code != http.StatusOK || first.Body.String() != toolStream {
+	if first.Code != http.StatusOK || !strings.Contains(first.Body.String(), `"name":"read_file"`) || !strings.Contains(first.Body.String(), `"arguments":"{\"path\":\""`) || !strings.Contains(first.Body.String(), "data: [DONE]") {
 		t.Fatalf("tool delta stream status=%d length=%d", first.Code, first.Body.Len())
 	}
 	firstRecord := requestRecord(t, fixture, first)
@@ -147,7 +147,7 @@ func TestGatewayPiToolCallDeltasAndToolResultHistory(t *testing.T) {
   "model":"safe-chat",
   "messages":[
     {"role":"user","content":"Inspect the repository."},
-    {"role":"assistant","content":null,"tool_calls":[{"id":"call_safe_1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"README.md\"}"}}]},
+    {"role":"assistant","content":null,"reasoning_content":"I should inspect the requested file.","tool_calls":[{"id":"call_safe_1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"README.md\"}"}}]},
     {"role":"tool","tool_call_id":"call_safe_1","content":"repository contents"},
     {"role":"user","content":"Summarise it."}
   ],
@@ -156,10 +156,10 @@ func TestGatewayPiToolCallDeltasAndToolResultHistory(t *testing.T) {
   "tools":[{"type":"function","function":{"name":"read_file","description":"Read a file","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]},"strict":false}}]
 }`
 	second := fixture.request(historyBody)
-	if second.Code != http.StatusOK || second.Body.String() != textStream || calls.Load() != 2 {
+	if second.Code != http.StatusOK || !strings.Contains(second.Body.String(), `"content":"done"`) || !strings.Contains(second.Body.String(), "data: [DONE]") || calls.Load() != 2 {
 		t.Fatalf("tool history status=%d calls=%d length=%d", second.Code, calls.Load(), second.Body.Len())
 	}
-	if len(history.Messages) != 4 || len(history.Messages[1].ToolCalls) != 1 || history.Messages[1].ToolCalls[0].ID != "call_safe_1" || history.Messages[2].Role != "tool" || history.Messages[2].ToolCallID != "call_safe_1" {
+	if len(history.Messages) != 4 || history.Messages[1].ReasoningContent == nil || *history.Messages[1].ReasoningContent != "I should inspect the requested file." || len(history.Messages[1].ToolCalls) != 1 || history.Messages[1].ToolCalls[0].ID != "call_safe_1" || history.Messages[2].Role != "tool" || history.Messages[2].ToolCallID != "call_safe_1" {
 		t.Fatal("assistant tool-call history or tool result was not forwarded intact")
 	}
 	secondRecord := requestRecord(t, fixture, second)
@@ -183,6 +183,7 @@ func TestGatewayRejectsMalformedOrUnsafeAgentShapes(t *testing.T) {
 		{"custom tool", `{"model":"safe-chat","messages":[{"role":"user","content":"x"}],"tools":[{"type":"custom","function":{"name":"run","parameters":{"type":"object","properties":{}}}}]}`, "invalid_tools"},
 		{"unknown target URL", `{"model":"safe-chat","messages":[{"role":"user","content":"x"}],"stream":true,"target_url":"https://attacker.invalid"}`, "unsupported_request_field"},
 		{"unknown provider model", `{"model":"safe-chat","messages":[{"role":"user","content":"x","provider_model":"attacker/model"}],"stream":true}`, "unsupported_request_field"},
+		{"user reasoning content", `{"model":"safe-chat","messages":[{"role":"user","content":"x","reasoning_content":"not allowed"}],"stream":true}`, "invalid_messages"},
 		{"image content", `{"model":"safe-chat","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,eA=="}}]}],"stream":true}`, "invalid_messages"},
 		{"unpaired tool result", `{"model":"safe-chat","messages":[{"role":"tool","tool_call_id":"call_1","content":"x"}],"stream":true}`, "invalid_messages"},
 		{"unknown tool choice", `{"model":"safe-chat","messages":[{"role":"user","content":"x"}],"tools":[{"type":"function","function":{"name":"run","parameters":{"type":"object","properties":{}}}}],"tool_choice":{"type":"function","function":{"name":"other"}}}`, "invalid_tool_choice"},

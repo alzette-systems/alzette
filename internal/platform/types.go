@@ -100,10 +100,18 @@ type Route struct {
 }
 
 type TokenUsage struct {
-	InputTokens     *int64 `json:"input_tokens"`
-	OutputTokens    *int64 `json:"output_tokens"`
-	CachedTokens    *int64 `json:"cached_tokens"`
-	ReasoningTokens *int64 `json:"reasoning_tokens"`
+	InputTokens         *int64 `json:"input_tokens"`
+	OutputTokens        *int64 `json:"output_tokens"`
+	TotalTokens         *int64 `json:"total_tokens"`
+	CachedTokens        *int64 `json:"cached_tokens"` // provider cache reads; retained for API compatibility
+	CachedWriteTokens   *int64 `json:"cached_write_tokens"`
+	CachedWriteTokens5m *int64 `json:"cached_write_tokens_5m"`
+	CachedWriteTokens1h *int64 `json:"cached_write_tokens_1h"`
+	ReasoningTokens     *int64 `json:"reasoning_tokens"`
+	TextInputTokens     *int64 `json:"text_input_tokens"`
+	AudioInputTokens    *int64 `json:"audio_input_tokens"`
+	ImageInputTokens    *int64 `json:"image_input_tokens"`
+	Normalization       string `json:"normalization,omitempty"`
 }
 
 type InferenceRequest struct {
@@ -144,6 +152,8 @@ type ProviderAttempt struct {
 	ErrorClass         string
 	Duration           time.Duration
 	ProviderRequestID  string
+	Usage              TokenUsage
+	UsageFinality      string
 }
 
 type RequestStart struct {
@@ -182,6 +192,8 @@ type AttemptFinish struct {
 	ErrorClass         string
 	Duration           time.Duration
 	ProviderRequestID  string
+	Usage              TokenUsage
+	UsageFinality      string
 }
 
 type UsageFilter struct {

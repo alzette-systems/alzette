@@ -389,6 +389,8 @@ func newApplicationHandler(mode, staticDirectory string, database *sql.DB, store
 			return nil, err
 		}
 		mux.Handle("/v1/chat/completions", handler)
+		mux.Handle("/v1/responses", handler)
+		mux.Handle("/v1/messages", handler)
 	}
 	if mode == "control" || mode == "serve" {
 		handler, err := control.New(control.Config{Store: store})

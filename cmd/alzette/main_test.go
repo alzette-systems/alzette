@@ -136,6 +136,21 @@ func TestGatewayModeDoesNotServeStaticOrControlSurface(t *testing.T) {
 	}
 }
 
+func TestGatewayModeMountsEverySupportedInferenceProtocol(t *testing.T) {
+	store := memory.New()
+	handler, err := newApplicationHandler("gateway", ".", nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/v1/chat/completions", "/v1/responses", "/v1/messages"} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		if response.Code != http.StatusMethodNotAllowed || response.Header().Get("Allow") != http.MethodPost {
+			t.Errorf("%s status=%d allow=%q", path, response.Code, response.Header().Get("Allow"))
+		}
+	}
+}
+
 func TestHealthEndpoint(t *testing.T) {
 	store := memory.New()
 	handler, err := newApplicationHandler("gateway", ".", nil, store)

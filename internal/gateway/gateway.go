@@ -6,15 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"mime"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	"alzette/internal/api"
 	"alzette/internal/ids"
+	"alzette/internal/inference"
 	"alzette/internal/platform"
 	"alzette/internal/secrets"
 )
@@ -36,6 +35,9 @@ type Config struct {
 	RetryBaseDelay       time.Duration
 	MaxRetryDelay        time.Duration
 	AllowInsecureTargets bool
+	// legacyHTTPForTests permits deterministic transport fault injection in this
+	// package. Production callers cannot select it; buffered execution uses Bifrost.
+	legacyHTTPForTests bool
 }
 
 type Gateway struct {
@@ -49,6 +51,8 @@ type Gateway struct {
 	retryBaseDelay       time.Duration
 	maxRetryDelay        time.Duration
 	allowInsecureTargets bool
+	bifrost              *inference.Engine
+	legacyHTTPForTests   bool
 }
 
 func New(config Config) (*Gateway, error) {
@@ -96,44 +100,57 @@ func New(config Config) (*Gateway, error) {
 	if config.MaxRetryDelay <= 0 {
 		config.MaxRetryDelay = 5 * time.Second
 	}
-	return &Gateway{store: config.Store, client: config.HTTPClient, secretLookup: config.SecretLookup, clock: config.Clock, newID: config.NewID, maxRequestBytes: config.MaxRequestBytes, maxResponseBytes: config.MaxResponseBytes, retryBaseDelay: config.RetryBaseDelay, maxRetryDelay: config.MaxRetryDelay, allowInsecureTargets: config.AllowInsecureTargets}, nil
+	return &Gateway{store: config.Store, client: config.HTTPClient, secretLookup: config.SecretLookup, clock: config.Clock, newID: config.NewID, maxRequestBytes: config.MaxRequestBytes, maxResponseBytes: config.MaxResponseBytes, retryBaseDelay: config.RetryBaseDelay, maxRetryDelay: config.MaxRetryDelay, allowInsecureTargets: config.AllowInsecureTargets, bifrost: inference.New(), legacyHTTPForTests: config.legacyHTTPForTests}, nil
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	protocol, ok := protocolForPath(r.URL.Path)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	writeError := func(status int, code, errorType, message, requestID string) {
+		writeProtocolError(w, protocol, status, code, errorType, message, requestID)
+	}
 	requestID, err := g.newID("req")
 	if err != nil {
-		api.WriteError(w, http.StatusInternalServerError, "internal_error", "api_error", "request could not be initialised", "")
+		writeError(http.StatusInternalServerError, "internal_error", "api_error", "request could not be initialised", "")
 		return
 	}
 	w.Header().Set("X-Alzette-Request-ID", requestID)
 	w.Header().Set("X-Request-ID", requestID)
 	if r.Method != http.MethodPost {
-		api.MethodNotAllowed(w, http.MethodPost, requestID)
+		w.Header().Set("Allow", http.MethodPost)
+		writeError(http.StatusMethodNotAllowed, "method_not_allowed", "invalid_request_error", "method not allowed", requestID)
 		return
 	}
 	if r.URL.RawQuery != "" {
-		api.WriteError(w, http.StatusBadRequest, "unsupported_query_parameter", "invalid_request_error", "query parameters are not supported by this endpoint", requestID)
+		writeError(http.StatusBadRequest, "unsupported_query_parameter", "invalid_request_error", "query parameters are not supported by this endpoint", requestID)
 		return
 	}
-	principal, err := api.Authenticate(r, g.store)
+	if protocol == protocolAnthropic {
+		w.Header().Add("Vary", "X-Api-Key")
+	}
+	principal, err := authenticateProtocol(r, protocol, g.store)
 	if err != nil {
 		if errors.Is(err, platform.ErrUnauthenticated) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="alzette"`)
-			api.WriteError(w, http.StatusUnauthorized, "invalid_api_key", "authentication_error", "authentication failed", requestID)
+			writeError(http.StatusUnauthorized, "invalid_api_key", "authentication_error", "authentication failed", requestID)
 			return
 		}
-		api.WriteError(w, http.StatusServiceUnavailable, "authentication_unavailable", "api_error", "authentication is temporarily unavailable", requestID)
+		writeError(http.StatusServiceUnavailable, "authentication_unavailable", "api_error", "authentication is temporarily unavailable", requestID)
 		return
 	}
 
-	request, parseErr := g.decodeRequest(w, r)
+	request, parseErr := g.decodeProtocolRequest(w, r, protocol)
 	if parseErr != nil {
-		api.WriteError(w, parseErr.status, parseErr.code, "invalid_request_error", parseErr.message, requestID)
+		writeError(parseErr.status, parseErr.code, "invalid_request_error", parseErr.message, requestID)
 		return
 	}
+	publicModel := request.Model
 	startedAt := g.clock().UTC()
 	if err := g.store.CreateInferenceRequest(r.Context(), platform.RequestStart{ID: requestID, Principal: principal, ModelAlias: request.Model, StartedAt: startedAt}); err != nil {
-		api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request ledger is temporarily unavailable", requestID)
+		writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request ledger is temporarily unavailable", requestID)
 		return
 	}
 	finish := func(status string, httpStatus int, class, model, providerID, finality string, usage platform.TokenUsage) bool {
@@ -145,65 +162,65 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if !principal.HasScope(platform.ScopeInferenceWrite) {
 		if !finish("blocked", http.StatusForbidden, "insufficient_scope", "", "", "unknown", platform.TokenUsage{}) {
-			api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+			writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 			return
 		}
-		api.WriteError(w, http.StatusForbidden, "insufficient_scope", "permission_error", "API key is not permitted to run inference", requestID)
+		writeError(http.StatusForbidden, "insufficient_scope", "permission_error", "API key is not permitted to run inference", requestID)
 		return
 	}
 	route, err := g.store.ResolveRoute(r.Context(), principal, request.Model)
 	if err != nil {
 		status, code, message := routeError(err)
 		if !finish("blocked", status, code, "", "", "unknown", platform.TokenUsage{}) {
-			api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+			writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 			return
 		}
-		api.WriteError(w, status, code, "invalid_request_error", message, requestID)
+		writeError(status, code, "invalid_request_error", message, requestID)
 		return
 	}
 	if err := g.store.SetInferenceRequestRoute(r.Context(), requestID, route.ID); err != nil {
 		if !finish("failed", http.StatusInternalServerError, "ledger_error", "", "", "unknown", platform.TokenUsage{}) {
-			api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+			writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 			return
 		}
-		api.WriteError(w, http.StatusInternalServerError, "ledger_error", "api_error", "request could not be recorded", requestID)
+		writeError(http.StatusInternalServerError, "ledger_error", "api_error", "request could not be recorded", requestID)
 		return
 	}
 	if _, err := targetEndpoint(route.Target.BaseURL, g.allowInsecureTargets); err != nil {
 		if !finish("failed", http.StatusBadGateway, "target_configuration", "", "", "unknown", platform.TokenUsage{}) {
-			api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+			writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 			return
 		}
 		healthContext, cancel := detachedContext()
 		_ = g.store.UpdateTargetHealth(healthContext, route.Target.ID, "degraded", g.clock().UTC(), false)
 		cancel()
-		api.WriteError(w, http.StatusBadGateway, "target_configuration", "api_error", "configured inference target is invalid", requestID)
+		writeError(http.StatusBadGateway, "target_configuration", "api_error", "configured inference target is invalid", requestID)
 		return
 	}
 	secret, ok := g.secretLookup(route.Target.SecretRef)
 	if !ok || secret == "" {
 		if !finish("failed", http.StatusServiceUnavailable, "target_unavailable", "", "", "unknown", platform.TokenUsage{}) {
-			api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+			writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 			return
 		}
 		healthContext, cancel := detachedContext()
 		_ = g.store.UpdateTargetHealth(healthContext, route.Target.ID, "degraded", g.clock().UTC(), false)
 		cancel()
-		api.WriteError(w, http.StatusServiceUnavailable, "target_unavailable", "api_error", "configured inference target is unavailable", requestID)
+		writeError(http.StatusServiceUnavailable, "target_unavailable", "api_error", "configured inference target is unavailable", requestID)
 		return
 	}
 	request.Model = route.Target.ProviderModel
 	upstreamBody, err := json.Marshal(request)
 	if err != nil {
 		if !finish("failed", http.StatusInternalServerError, "internal_error", "", "", "unknown", platform.TokenUsage{}) {
-			api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+			writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 			return
 		}
-		api.WriteError(w, http.StatusInternalServerError, "internal_error", "api_error", "request could not be prepared", requestID)
+		writeError(http.StatusInternalServerError, "internal_error", "api_error", "request could not be prepared", requestID)
 		return
 	}
 	if request.streaming() {
-		g.serveStreaming(w, r, requestID, route, secret, upstreamBody, finish)
+		g.serveStreaming(w, r, requestID, publicModel, protocol, route, secret, upstreamBody, finish)
 		return
 	}
 
@@ -211,8 +228,17 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for attemptNumber := 1; attemptNumber <= route.Target.MaxAttempts; attemptNumber++ {
 		terminal = g.performAttempt(r.Context(), requestID, route, secret, upstreamBody, attemptNumber)
 		if terminal.success {
+			responseBody, encodeErr := encodeProtocolResponse(protocol, terminal.body, requestID, publicModel, g.clock().UTC())
+			if encodeErr != nil {
+				if !finish("failed", http.StatusBadGateway, "invalid_upstream_response", "", terminal.providerID, "unknown", platform.TokenUsage{}) {
+					writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+					return
+				}
+				writeError(http.StatusBadGateway, "invalid_upstream_response", "upstream_error", "upstream inference could not be represented in the requested API", requestID)
+				return
+			}
 			if !finish("succeeded", http.StatusOK, "", terminal.model, terminal.providerID, terminal.finality, terminal.usage) {
-				api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+				writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 				return
 			}
 			healthContext, cancel := detachedContext()
@@ -221,7 +247,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.Header().Set("Cache-Control", "no-store")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(terminal.body)
+			_, _ = w.Write(responseBody)
 			return
 		}
 		if !terminal.retryable || attemptNumber == route.Target.MaxAttempts {
@@ -250,7 +276,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		terminal.message = "upstream inference failed"
 	}
 	if !finish(status, terminal.clientStatus, terminal.class, "", terminal.providerID, "unknown", platform.TokenUsage{}) {
-		api.WriteError(w, http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
+		writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)
 		return
 	}
 	if healthStatus := failureHealthStatus(terminal.class); healthStatus != "" {
@@ -261,39 +287,12 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if terminal.retryAfterHeader != "" {
 		w.Header().Set("Retry-After", terminal.retryAfterHeader)
 	}
-	api.WriteError(w, terminal.clientStatus, terminal.class, "upstream_error", terminal.message, requestID)
+	writeError(terminal.clientStatus, terminal.class, "upstream_error", terminal.message, requestID)
 }
 
 type requestError struct {
 	status        int
 	code, message string
-}
-
-func (g *Gateway) decodeRequest(w http.ResponseWriter, r *http.Request) (ChatRequest, *requestError) {
-	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || mediaType != "application/json" {
-		return ChatRequest{}, &requestError{http.StatusUnsupportedMediaType, "unsupported_content_type", "Content-Type must be application/json"}
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, g.maxRequestBytes)
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	var request ChatRequest
-	if err := decoder.Decode(&request); err != nil {
-		if strings.Contains(err.Error(), "request body too large") {
-			return ChatRequest{}, &requestError{http.StatusRequestEntityTooLarge, "request_too_large", "request body exceeds the configured limit"}
-		}
-		if strings.Contains(err.Error(), "json: unknown field") {
-			return ChatRequest{}, &requestError{http.StatusBadRequest, "unsupported_request_field", "request contains a field outside the supported chat completion subset"}
-		}
-		return ChatRequest{}, &requestError{http.StatusBadRequest, "invalid_json", "request body is not a valid supported chat completion"}
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return ChatRequest{}, &requestError{http.StatusBadRequest, "invalid_json", "request body must contain exactly one JSON object"}
-	}
-	if validation := request.validate(); validation != nil {
-		return ChatRequest{}, validation
-	}
-	return request, nil
 }
 
 type attemptResult struct {
@@ -313,6 +312,9 @@ type attemptResult struct {
 }
 
 func (g *Gateway) performAttempt(parent context.Context, requestID string, route platform.Route, secret string, body []byte, number int) attemptResult {
+	if !g.legacyHTTPForTests {
+		return g.performBifrostAttempt(parent, requestID, route, secret, body, number)
+	}
 	attemptID, err := g.newID("att")
 	if err != nil {
 		return attemptResult{class: "ledger_error", clientStatus: http.StatusInternalServerError, message: "request attempt could not be initialised"}
@@ -421,6 +423,124 @@ func (g *Gateway) performAttempt(parent context.Context, requestID string, route
 		return ledgerFailure()
 	}
 	return attemptResult{success: true, body: responseBody, model: meta.model, providerID: providerID, usage: meta.usage, finality: meta.finality}
+}
+
+func (g *Gateway) performBifrostAttempt(parent context.Context, requestID string, route platform.Route, secret string, body []byte, number int) attemptResult {
+	attemptID, err := g.newID("att")
+	if err != nil {
+		return attemptResult{class: "ledger_error", clientStatus: http.StatusInternalServerError, message: "request attempt could not be initialised"}
+	}
+	started := g.clock().UTC()
+	if err := g.store.CreateProviderAttempt(parent, platform.AttemptStart{ID: attemptID, InferenceRequestID: requestID, TargetID: route.Target.ID, AttemptNumber: number, StartedAt: started}); err != nil {
+		return attemptResult{class: "ledger_error", clientStatus: http.StatusServiceUnavailable, message: "request attempt could not be recorded"}
+	}
+	finish := func(status, class, providerID string, providerStatus int, usage platform.TokenUsage, finality string) error {
+		finishContext, cancel := detachedContext()
+		defer cancel()
+		return g.store.CompleteProviderAttempt(finishContext, platform.AttemptFinish{
+			ID: attemptID, CompletedAt: g.clock().UTC(), Status: status,
+			ProviderHTTPStatus: providerStatus, ErrorClass: class,
+			Duration: elapsed(started, g.clock().UTC()), ProviderRequestID: providerID,
+			Usage: usage, UsageFinality: finality,
+		})
+	}
+	ledgerFailure := func() attemptResult {
+		return attemptResult{class: "ledger_error", clientStatus: http.StatusServiceUnavailable, message: "request attempt result could not be recorded"}
+	}
+	attemptContext, cancel := context.WithTimeout(parent, route.Target.Timeout)
+	defer cancel()
+	result, providerErr := g.bifrost.Chat(attemptContext, inference.Target{
+		BaseURL: route.Target.BaseURL, Model: route.Target.ProviderModel,
+		Timeout: route.Target.Timeout, AllowPrivateNetwork: g.allowInsecureTargets,
+	}, secret, requestID, body)
+	if providerErr != nil {
+		usage, finality := platformUsage(providerErr.BilledUsage, "partial")
+		providerID := safeProviderID(providerErr.ProviderRequestID)
+		if parent.Err() != nil {
+			if finish("cancelled", "client_cancelled", providerID, providerErr.StatusCode, usage, finality) != nil {
+				return ledgerFailure()
+			}
+			return attemptResult{class: "client_cancelled", clientStatus: 499, message: "request was cancelled", providerID: providerID}
+		}
+		if errors.Is(attemptContext.Err(), context.DeadlineExceeded) {
+			if finish("failed", "upstream_timeout", providerID, providerErr.StatusCode, usage, finality) != nil {
+				return ledgerFailure()
+			}
+			return attemptResult{retryable: true, class: "upstream_timeout", clientStatus: http.StatusGatewayTimeout, message: "upstream inference timed out", providerID: providerID}
+		}
+		terminal := classifyBifrostError(providerErr)
+		terminal.providerID = providerID
+		if providerErr.RetryAfter != "" {
+			terminal.retryAfter, terminal.retryAfterSet, terminal.retryAfterHeader = parseRetryAfter(providerErr.RetryAfter, g.clock().UTC())
+		}
+		if finish("failed", terminal.class, providerID, providerErr.StatusCode, usage, finality) != nil {
+			return ledgerFailure()
+		}
+		return terminal
+	}
+	if result == nil || int64(len(result.Body)) > g.maxResponseBytes {
+		class := "invalid_upstream_response"
+		message := "upstream inference returned an invalid response"
+		if result != nil && int64(len(result.Body)) > g.maxResponseBytes {
+			class, message = "upstream_response_too_large", "upstream inference response exceeded the configured limit"
+		}
+		if finish("failed", class, "", http.StatusOK, platform.TokenUsage{}, "unknown") != nil {
+			return ledgerFailure()
+		}
+		return attemptResult{class: class, clientStatus: http.StatusBadGateway, message: message}
+	}
+	usage, finality := platformUsage(result.Usage, "final")
+	providerID := safeProviderID(result.ProviderRequestID)
+	if finish("succeeded", "", providerID, http.StatusOK, usage, finality) != nil {
+		return ledgerFailure()
+	}
+	return attemptResult{success: true, body: result.Body, model: safeModel(result.Model), providerID: providerID, usage: usage, finality: finality}
+}
+
+func classifyBifrostError(value *inference.ProviderError) attemptResult {
+	if value == nil || value.StatusCode == 0 {
+		return attemptResult{retryable: true, class: "upstream_transport", clientStatus: http.StatusBadGateway, message: "upstream inference connection failed"}
+	}
+	return classifyProviderStatus(value.StatusCode)
+}
+
+func platformUsage(value *inference.Usage, knownFinality string) (platform.TokenUsage, string) {
+	if value == nil {
+		return platform.TokenUsage{}, "unknown"
+	}
+	copyValue := func(value int64) *int64 { result := value; return &result }
+	if value.Finality != "" {
+		knownFinality = value.Finality
+	}
+	result := platform.TokenUsage{Normalization: inference.NormalizationVersion}
+	if value.HasPromptTokens {
+		result.InputTokens = copyValue(value.PromptTokens)
+	}
+	if value.HasCompletionTokens {
+		result.OutputTokens = copyValue(value.CompletionTokens)
+	}
+	if value.HasTotalTokens {
+		result.TotalTokens = copyValue(value.TotalTokens)
+	}
+	if value.HasPromptDetails {
+		result.CachedTokens = copyValue(value.CachedReadTokens)
+		result.CachedWriteTokens = copyValue(value.CachedWriteTokens)
+		result.CachedWriteTokens5m = copyValue(value.CachedWriteTokens5m)
+		result.CachedWriteTokens1h = copyValue(value.CachedWriteTokens1h)
+		result.TextInputTokens = copyValue(value.TextInputTokens)
+		result.AudioInputTokens = copyValue(value.AudioInputTokens)
+		result.ImageInputTokens = copyValue(value.ImageInputTokens)
+	}
+	if value.HasCompletionDetails {
+		result.ReasoningTokens = copyValue(value.ReasoningTokens)
+	}
+	if result.InputTokens == nil && result.OutputTokens == nil && result.TotalTokens == nil &&
+		result.CachedTokens == nil && result.CachedWriteTokens == nil &&
+		result.ReasoningTokens == nil && result.TextInputTokens == nil &&
+		result.AudioInputTokens == nil && result.ImageInputTokens == nil {
+		return platform.TokenUsage{}, "unknown"
+	}
+	return result, knownFinality
 }
 
 type providerResponse struct {

@@ -171,12 +171,19 @@ func (s *Store) CompleteInferenceRequest(ctx context.Context, finish platform.Re
 		   SET completed_at = $2, status = $3, http_status = $4, error_class = NULLIF($5, ''),
 		       executed_model = NULLIF($6, ''), provider_request_id = NULLIF($7, ''), duration_ms = $8,
 		       input_tokens = $9, output_tokens = $10, cached_tokens = $11, reasoning_tokens = $12,
-		       usage_finality = $13
+		       usage_finality = $13, total_tokens = $14, cached_write_tokens = $15,
+		       cached_write_tokens_5m = $16, cached_write_tokens_1h = $17,
+		       text_input_tokens = $18, audio_input_tokens = $19, image_input_tokens = $20,
+		       usage_normalization_version = NULLIF($21, '')
 		 WHERE id = $1 AND status = 'in_progress'`,
 		finish.ID, finish.CompletedAt, finish.Status, nullableInt(finish.HTTPStatus), finish.ErrorClass,
 		finish.ExecutedModel, finish.ProviderRequestID, milliseconds(finish.Duration),
 		nullableToken(finish.Usage.InputTokens), nullableToken(finish.Usage.OutputTokens),
-		nullableToken(finish.Usage.CachedTokens), nullableToken(finish.Usage.ReasoningTokens), finish.UsageFinality)
+		nullableToken(finish.Usage.CachedTokens), nullableToken(finish.Usage.ReasoningTokens), finish.UsageFinality,
+		nullableToken(finish.Usage.TotalTokens), nullableToken(finish.Usage.CachedWriteTokens),
+		nullableToken(finish.Usage.CachedWriteTokens5m), nullableToken(finish.Usage.CachedWriteTokens1h),
+		nullableToken(finish.Usage.TextInputTokens), nullableToken(finish.Usage.AudioInputTokens),
+		nullableToken(finish.Usage.ImageInputTokens), finish.Usage.Normalization)
 	if err != nil {
 		return mapWriteError("complete inference request", err)
 	}
@@ -209,13 +216,28 @@ func (s *Store) CreateProviderAttempt(ctx context.Context, start platform.Attemp
 }
 
 func (s *Store) CompleteProviderAttempt(ctx context.Context, finish platform.AttemptFinish) error {
+	if finish.UsageFinality == "" {
+		finish.UsageFinality = "unknown"
+	}
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE provider_attempts
 		   SET completed_at = $2, status = $3, provider_http_status = $4,
-		       error_class = NULLIF($5, ''), duration_ms = $6, provider_request_id = NULLIF($7, '')
+		       error_class = NULLIF($5, ''), duration_ms = $6, provider_request_id = NULLIF($7, ''),
+		       input_tokens = $8, output_tokens = $9, total_tokens = $10,
+		       cached_read_tokens = $11, cached_write_tokens = $12,
+		       cached_write_tokens_5m = $13, cached_write_tokens_1h = $14,
+		       reasoning_tokens = $15, text_input_tokens = $16,
+		       audio_input_tokens = $17, image_input_tokens = $18,
+		       usage_finality = $19, usage_normalization_version = NULLIF($20, '')
 		 WHERE id = $1 AND status = 'in_progress'`,
 		finish.ID, finish.CompletedAt, finish.Status, nullableInt(finish.ProviderHTTPStatus),
-		finish.ErrorClass, milliseconds(finish.Duration), finish.ProviderRequestID)
+		finish.ErrorClass, milliseconds(finish.Duration), finish.ProviderRequestID,
+		nullableToken(finish.Usage.InputTokens), nullableToken(finish.Usage.OutputTokens),
+		nullableToken(finish.Usage.TotalTokens), nullableToken(finish.Usage.CachedTokens),
+		nullableToken(finish.Usage.CachedWriteTokens), nullableToken(finish.Usage.CachedWriteTokens5m),
+		nullableToken(finish.Usage.CachedWriteTokens1h), nullableToken(finish.Usage.ReasoningTokens),
+		nullableToken(finish.Usage.TextInputTokens), nullableToken(finish.Usage.AudioInputTokens),
+		nullableToken(finish.Usage.ImageInputTokens), finish.UsageFinality, finish.Usage.Normalization)
 	if err != nil {
 		return mapWriteError("complete provider attempt", err)
 	}
@@ -348,7 +370,9 @@ const requestSelect = `
 	       COALESCE(executed_model, ''), COALESCE(provider_request_id, ''), started_at,
 	       completed_at, status, COALESCE(http_status, 0), COALESCE(error_class, ''),
 	       COALESCE(duration_ms, 0), input_tokens, output_tokens, cached_tokens, reasoning_tokens,
-	       usage_finality, attempt_count
+	       usage_finality, attempt_count, total_tokens, cached_write_tokens,
+	       cached_write_tokens_5m, cached_write_tokens_1h, text_input_tokens,
+	       audio_input_tokens, image_input_tokens, COALESCE(usage_normalization_version, '')
 	  FROM inference_requests`
 
 type scanner interface{ Scan(...interface{}) error }
@@ -357,13 +381,15 @@ func scanRequest(row scanner) (platform.InferenceRequest, error) {
 	var record platform.InferenceRequest
 	var completed sql.NullTime
 	var durationMS int64
-	var input, output, cached, reasoning sql.NullInt64
+	var input, output, cached, reasoning, total, cachedWrite, cachedWrite5m, cachedWrite1h sql.NullInt64
+	var textInput, audioInput, imageInput sql.NullInt64
 	err := row.Scan(&record.ID, &record.OrganisationID, &record.ProjectID, &record.EnvironmentID, &record.RouteID,
 		&record.BoundTargetID, &record.BoundModelID, &record.RouteBindingGeneration,
 		&record.ServiceAccountID, &record.APIKeyID, &record.KeyPrefix, &record.ModelAlias,
 		&record.ExecutedModel, &record.ProviderRequestID, &record.StartedAt, &completed, &record.Status,
 		&record.HTTPStatus, &record.ErrorClass, &durationMS, &input, &output, &cached, &reasoning,
-		&record.UsageFinality, &record.AttemptCount)
+		&record.UsageFinality, &record.AttemptCount, &total, &cachedWrite, &cachedWrite5m,
+		&cachedWrite1h, &textInput, &audioInput, &imageInput, &record.Usage.Normalization)
 	if err != nil {
 		return platform.InferenceRequest{}, err
 	}
@@ -375,6 +401,13 @@ func scanRequest(row scanner) (platform.InferenceRequest, error) {
 	record.Usage.OutputTokens = intPointer(output)
 	record.Usage.CachedTokens = intPointer(cached)
 	record.Usage.ReasoningTokens = intPointer(reasoning)
+	record.Usage.TotalTokens = intPointer(total)
+	record.Usage.CachedWriteTokens = intPointer(cachedWrite)
+	record.Usage.CachedWriteTokens5m = intPointer(cachedWrite5m)
+	record.Usage.CachedWriteTokens1h = intPointer(cachedWrite1h)
+	record.Usage.TextInputTokens = intPointer(textInput)
+	record.Usage.AudioInputTokens = intPointer(audioInput)
+	record.Usage.ImageInputTokens = intPointer(imageInput)
 	return record, nil
 }
 

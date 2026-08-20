@@ -1,5 +1,33 @@
 # Alzette OpenRouter PoC QA report
 
+## Embedded Bifrost and Pi tool-loop verification — 2026-08-20
+
+### Verdict
+
+The live `Alzette-chat` route passed the bounded Bifrost and Pi tool-call demo.
+A buffered forced-tool request selected Bifrost's DeepSeek provider adapter,
+returned `demo_weather` with valid JSON arguments, and recorded final provider
+usage (`288` input, `40` output, `328` total) with normalization
+`bifrost-core/v1.7.13`. A real Pi 0.84.2 streaming run then requested the
+read-only `read` tool, executed it locally, replayed the assistant
+`reasoning_content`, tool call, and tool result, and completed with
+`MODULE=alzette`. The two Pi turns were recorded as separate successful logical
+requests and provider attempts.
+
+The transport boundary remains deliberate: buffered calls execute through
+Bifrost Core, while streaming calls use Alzette's context-cancelled `net/http`
+SSE transport. The Bifrost wrapper rejects `stream:true` before provider
+execution. This avoids the independently reproduced Bifrost/fasthttp
+closer-vs-reader race tracked in
+[maximhq/bifrost#6143](https://github.com/maximhq/bifrost/issues/6143), without
+giving up Bifrost's provider-specific buffered conversion and usage mapping.
+
+The live CLI check used the existing application credential to isolate the
+gateway/provider/tool contract; the employee demo must still start Pi through
+`alzette-agent pi` or Alzette Connect so OAuth, group-filtered model discovery,
+short `alz_u_` minting, and revocation remain in the path. The temporary direct
+Pi endpoint override was restored after the test.
+
 ## Local workforce OAuth and human inference verification — 2026-08-18
 
 ### Verdict
