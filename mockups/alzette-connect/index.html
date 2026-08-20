@@ -1,0 +1,304 @@
+<!doctype html>
+<!--
+THESIS: Alzette Connect is an application launcher that makes entitled model access visible without turning model choice into a wizard; it refuses the dashboard/sidebar pattern.
+OWN-WORLD: Warm paper, night ink, thin ledger rules, scarce river green, system sans, and mono only for scope and observed state.
+STORY: Sign in once, see the synchronized model catalogue, choose a qualified installed application, and launch it through a supervised Alzette connection.
+FIRST VIEWPORT: Compact context header, one catalogue synchronization row, a dominant application ledger, and one exact launch surface anchored at the bottom.
+FORM: App-first launch ledger with persistent supervision; grounded structure 3, dressed in the established Scoped Ledger system; surface seed 38a1b843.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Alzette Connect — product mockup</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="mockup-lab">
+      <header class="lab-bar" aria-label="Mockup controls">
+        <div>
+          <strong>Alzette Connect</strong>
+          <span>Platform-neutral product mockup · illustrative workspace</span>
+        </div>
+        <nav class="lab-states" aria-label="Preview lifecycle state">
+          <button type="button" data-show-state="signed-out">Signed out</button>
+          <button type="button" data-show-state="launcher">Launcher</button>
+          <button type="button" data-show-state="preparing">Preparing</button>
+          <button type="button" data-show-state="running">Running</button>
+          <button type="button" data-show-state="recovery">Recovery</button>
+          <button type="button" data-single-preview>Single-model preview</button>
+        </nav>
+      </header>
+
+      <section class="connect-window" aria-label="Alzette Connect mockup">
+        <header class="app-bar">
+          <a class="brand" href="#" aria-label="Alzette Connect home">
+            <img src="../../alzette-mark.svg" alt="" width="24" height="24">
+            <span>Alzette Connect</span>
+          </a>
+          <span class="prototype-flag">CONCEPT</span>
+          <div class="app-bar__context" data-auth-only>
+            <span class="quiet-label">WORKSPACE</span>
+            <strong>Example Bank</strong>
+            <span>Research / Development</span>
+          </div>
+          <button class="icon-button" type="button" aria-label="Open account and settings menu" aria-expanded="false" data-menu-button>
+            <span aria-hidden="true">•••</span>
+          </button>
+          <div class="account-menu" data-account-menu hidden>
+            <strong>Alex Morgan</strong>
+            <span>alex.morgan@example.lu</span>
+            <button type="button" data-diagnostics>Diagnostics</button>
+            <button type="button" data-sign-out>Sign out</button>
+          </div>
+        </header>
+
+        <section class="screen screen--signed-out" data-screen="signed-out" aria-labelledby="sign-in-title">
+          <div class="sign-in-copy">
+            <span class="signal-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+            <p class="quiet-label">EMPLOYEE CONNECTION</p>
+            <h1 id="sign-in-title">Launch your approved AI tools.</h1>
+            <p>Sign in to load the models assigned by your company. Connect keeps remote credentials out of desktop applications.</p>
+          </div>
+          <div class="sign-in-action">
+            <dl>
+              <div><dt>Models</dt><dd>Set by your company</dd></div>
+              <div><dt>Applications</dt><dd>Qualified before launch</dd></div>
+              <div><dt>Credentials</dt><dd>Kept inside Connect</dd></div>
+            </dl>
+            <button class="button button--primary button--wide" type="button" data-sign-in>
+              Sign in with Alzette
+            </button>
+            <small>Authentication opens in your default browser.</small>
+          </div>
+        </section>
+
+        <section class="screen screen--workspace" data-screen="launcher" aria-labelledby="applications-title">
+          <section class="catalogue-strip" aria-label="Available Alzette model catalogue">
+            <button class="catalogue-summary" type="button" aria-expanded="false" data-catalogue-toggle>
+              <span class="catalogue-summary__signal" aria-hidden="true"></span>
+              <span><strong>4 models available through Alzette</strong><small>Synced just now · current company access</small></span>
+              <span class="catalogue-summary__action">View models <b aria-hidden="true">⌄</b></span>
+            </button>
+            <div class="model-drawer" data-model-drawer hidden>
+              <div class="model-drawer__heading">
+                <div><span class="quiet-label">ILLUSTRATIVE CATALOGUE</span><strong>Assigned models</strong></div>
+                <span>Compatibility is checked per application.</span>
+              </div>
+              <ul>
+                <li><span><b>alzette-chat</b><small>Text · tools</small></span><em>Available</em></li>
+                <li><span><b>approved-coder</b><small>Code · tools</small></span><em>Available</em></li>
+                <li><span><b>document-review</b><small>Long context</small></span><em>Available</em></li>
+                <li><span><b>reasoning-private</b><small>Reasoning</small></span><em>Available</em></li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="cleanup-banner" data-cleanup-banner hidden aria-live="polite">
+            <span aria-hidden="true">!</span>
+            <div><strong>One application profile still needs review.</strong><small>Remote access is revoked; local cleanup remains.</small></div>
+            <button type="button" data-review-cleanup>Review</button>
+          </section>
+
+          <section class="application-region">
+            <header class="section-heading">
+              <div>
+                <p class="quiet-label">APPLICATIONS</p>
+                <h1 id="applications-title">Choose where to work</h1>
+              </div>
+              <p>Double-click to launch</p>
+            </header>
+
+            <div class="application-list" role="listbox" aria-label="Applications" aria-describedby="application-help">
+              <button class="application-row is-selected" type="button" role="option" aria-selected="true" data-app="pi" data-mode="catalogue" data-models="4">
+                <span class="app-icon app-icon--pi" aria-hidden="true">π</span>
+                <span class="application-row__name"><strong>Pi</strong><small>Installed · 0.84.2</small></span>
+                <span class="application-row__models"><strong>4 models</strong><small>Full catalogue</small></span>
+                <span class="state state--ready"><i aria-hidden="true">✓</i> Ready</span>
+              </button>
+              <button class="application-row" type="button" role="option" aria-selected="false" data-app="jan" data-mode="catalogue" data-models="4">
+                <span class="app-icon" aria-hidden="true">J</span>
+                <span class="application-row__name"><strong>Jan Desktop</strong><small>Installed · 0.8.4</small></span>
+                <span class="application-row__models"><strong>4 models</strong><small>Full catalogue</small></span>
+                <span class="state state--ready"><i aria-hidden="true">✓</i> Ready</span>
+              </button>
+              <button class="application-row" type="button" role="option" aria-selected="false" aria-disabled="true" disabled data-app="goose" data-mode="catalogue" data-models="0">
+                <span class="app-icon" aria-hidden="true">G</span>
+                <span class="application-row__name"><strong>Goose Desktop</strong><small>Installed · 1.42.0</small></span>
+                <span class="application-row__models"><strong>—</strong><small>Version blocked</small></span>
+                <span class="state state--warning"><i aria-hidden="true">!</i> Update required</span>
+              </button>
+              <button class="application-row" type="button" role="option" aria-selected="false" aria-disabled="true" disabled data-app="claude" data-mode="single" data-models="0">
+                <span class="app-icon" aria-hidden="true">C</span>
+                <span class="application-row__name"><strong>Claude Code</strong><small>Installed · adapter planned</small></span>
+                <span class="application-row__models"><strong>—</strong><small>Anthropic Messages needed</small></span>
+                <span class="state state--unavailable"><i aria-hidden="true">×</i> Protocol unavailable</span>
+              </button>
+              <button class="application-row" type="button" role="option" aria-selected="false" aria-disabled="true" disabled data-app="codex" data-mode="primary_plus_catalogue" data-models="0">
+                <span class="app-icon" aria-hidden="true">X</span>
+                <span class="application-row__name"><strong>Codex</strong><small>Installed · 0.42.0</small></span>
+                <span class="application-row__models"><strong>—</strong><small>Responses API needed</small></span>
+                <span class="state state--unavailable"><i aria-hidden="true">×</i> Protocol unavailable</span>
+              </button>
+            </div>
+            <p class="sr-only" id="application-help">Select an application and press Enter, or double-click a ready application, to launch it.</p>
+          </section>
+
+          <section class="launch-plane" aria-live="polite" data-launch-plane>
+            <div class="launch-plane__copy">
+              <span class="launch-glyph" aria-hidden="true">↗</span>
+              <span><strong data-launch-title>Launch Pi through Alzette</strong><small data-launch-detail>Pi will receive all 4 compatible models. Choose a model inside Pi.</small></span>
+            </div>
+            <button class="button button--green" type="button" data-launch>Launch Pi</button>
+          </section>
+        </section>
+
+        <section class="screen screen--workspace" data-screen="preparing" aria-labelledby="preparing-title">
+          <section class="catalogue-strip catalogue-strip--quiet">
+            <div class="catalogue-summary">
+              <span class="catalogue-summary__signal" aria-hidden="true"></span>
+              <span><strong>4 models available through Alzette</strong><small>Current company access confirmed</small></span>
+            </div>
+          </section>
+          <section class="preparing-region">
+            <p class="quiet-label">LAUNCHING PI</p>
+            <h1 id="preparing-title">Preparing the connection</h1>
+            <p>Connect is configuring a temporary Pi profile. Remote credentials remain inside Alzette Connect.</p>
+            <ol class="progress-ledger" aria-label="Launch progress">
+              <li class="is-complete"><i aria-hidden="true">✓</i><span><strong>Application checked</strong><small>Pi 0.84.2 is qualified</small></span></li>
+              <li class="is-complete"><i aria-hidden="true">✓</i><span><strong>Model catalogue prepared</strong><small>4 compatible models</small></span></li>
+              <li class="is-current"><i aria-hidden="true"></i><span><strong>Secure local connection</strong><small>Starting on this device</small></span></li>
+              <li><i aria-hidden="true"></i><span><strong>Open Pi</strong><small>Waiting for connection</small></span></li>
+            </ol>
+          </section>
+          <section class="preparing-action">
+            <span><strong>Keep Connect open</strong><small>This usually takes a few seconds.</small></span>
+            <button class="button button--secondary-dark" type="button" data-cancel-launch>Cancel</button>
+          </section>
+        </section>
+
+        <section class="screen screen--workspace" data-screen="running" aria-labelledby="running-title">
+          <section class="catalogue-strip catalogue-strip--quiet">
+            <div class="catalogue-summary">
+              <span class="catalogue-summary__signal" aria-hidden="true"></span>
+              <span><strong>4 models available through Alzette</strong><small>Current company access · Pi is using this catalogue</small></span>
+            </div>
+          </section>
+          <section class="application-region application-region--running">
+            <header class="section-heading">
+              <div><p class="quiet-label">APPLICATIONS</p><h1 id="running-title">Choose where to work</h1></div>
+              <p>Disconnect Pi to launch another app</p>
+            </header>
+            <div class="application-list application-list--compact" role="list" aria-label="Application status">
+              <div class="application-row is-running" role="listitem">
+                <span class="app-icon app-icon--pi" aria-hidden="true">π</span>
+                <span class="application-row__name"><strong>Pi</strong><small>Started at 09:41</small></span>
+                <span class="application-row__models"><strong>4 models</strong><small>Active alias not observed yet</small></span>
+                <span class="state state--running"><i aria-hidden="true"></i> Running</span>
+              </div>
+              <div class="application-row is-disabled" role="listitem" aria-disabled="true">
+                <span class="app-icon" aria-hidden="true">J</span>
+                <span class="application-row__name"><strong>Jan Desktop</strong><small>Installed · 0.8.4</small></span>
+                <span class="application-row__models"><strong>4 models</strong><small>Full catalogue</small></span>
+                <span class="state state--choice"><i aria-hidden="true">1</i> Available after disconnect</span>
+              </div>
+              <div class="application-row is-disabled" role="listitem" aria-disabled="true">
+                <span class="app-icon" aria-hidden="true">G</span>
+                <span class="application-row__name"><strong>Goose Desktop</strong><small>Installed · 1.42.0</small></span>
+                <span class="application-row__models"><strong>—</strong><small>Version blocked</small></span>
+                <span class="state state--warning"><i aria-hidden="true">!</i> Update required</span>
+              </div>
+              <div class="application-row is-disabled" role="listitem" aria-disabled="true">
+                <span class="app-icon" aria-hidden="true">C</span>
+                <span class="application-row__name"><strong>Claude Code</strong><small>Installed · adapter planned</small></span>
+                <span class="application-row__models"><strong>—</strong><small>Anthropic Messages needed</small></span>
+                <span class="state state--unavailable"><i aria-hidden="true">×</i> Protocol unavailable</span>
+              </div>
+              <div class="application-row is-disabled" role="listitem" aria-disabled="true">
+                <span class="app-icon" aria-hidden="true">X</span>
+                <span class="application-row__name"><strong>Codex</strong><small>Installed · 0.42.0</small></span>
+                <span class="application-row__models"><strong>—</strong><small>Responses API needed</small></span>
+                <span class="state state--unavailable"><i aria-hidden="true">×</i> Protocol unavailable</span>
+              </div>
+            </div>
+          </section>
+          <section class="session-plane">
+            <div class="session-plane__status">
+              <span class="session-pulse" aria-hidden="true"></span>
+              <span><strong>Pi is connected through Alzette</strong><small>Connect must remain running. Closing this window keeps it active in the tray.</small></span>
+            </div>
+            <div class="session-plane__actions">
+              <button class="button button--secondary-dark" type="button" data-hide-tray>Hide to tray</button>
+              <button class="button button--danger-dark" type="button" data-disconnect>Disconnect</button>
+            </div>
+          </section>
+        </section>
+
+        <section class="screen screen--workspace" data-screen="recovery" aria-labelledby="recovery-title">
+          <section class="attention-strip" role="status">
+            <span aria-hidden="true">!</span>
+            <div><strong>Pi disconnected. One local cleanup action needs attention.</strong><small>The Alzette connection is closed and its grant has been revoked.</small></div>
+          </section>
+          <section class="recovery-region">
+            <p class="quiet-label">LOCAL RECOVERY</p>
+            <h1 id="recovery-title">Restore the application profile</h1>
+            <p>Pi changed its profile while Connect was closing, so Connect did not overwrite the newer file automatically.</p>
+            <dl class="recovery-ledger">
+              <div><dt>Remote access</dt><dd><span class="state state--ready"><i aria-hidden="true">✓</i> Revoked</span></dd></div>
+              <div><dt>Local connection</dt><dd><span class="state state--ready"><i aria-hidden="true">✓</i> Closed</span></dd></div>
+              <div><dt>Profile backup</dt><dd><code>Pi profile · backup 09:44</code></dd></div>
+              <div><dt>Reason</dt><dd>Application settings changed after launch</dd></div>
+            </dl>
+            <aside class="recovery-note">
+              <strong>No credential is exposed.</strong>
+              <p>The temporary local key is no longer valid. You can compare the current profile with Connect’s private backup before restoring it.</p>
+            </aside>
+          </section>
+          <section class="recovery-actions">
+            <button class="button button--secondary" type="button" data-back-launcher>Return to applications</button>
+            <button class="button button--primary" type="button" data-resolve-cleanup>Review and restore</button>
+          </section>
+        </section>
+
+        <dialog class="model-dialog" data-model-dialog aria-labelledby="model-dialog-title">
+          <form method="dialog">
+            <header>
+              <div><p class="quiet-label">FUTURE SINGLE-MODEL ADAPTER PREVIEW</p><h2 id="model-dialog-title">Choose a launch model</h2></div>
+              <button class="icon-button" value="cancel" aria-label="Close model selection">×</button>
+            </header>
+            <p>A single-model application requires one model when it starts. Your other assigned models remain available to catalogue-capable applications.</p>
+            <label class="model-choice">
+              <input type="radio" name="launch-model" value="approved-coder" checked>
+              <span><strong>approved-coder</strong><small>Code · tools</small></span>
+              <em>Recommended</em>
+            </label>
+            <label class="model-choice">
+              <input type="radio" name="launch-model" value="alzette-chat">
+              <span><strong>alzette-chat</strong><small>Text · tools</small></span>
+              <em>Available</em>
+            </label>
+            <footer>
+              <button class="button button--secondary" value="cancel">Cancel</button>
+              <button class="button button--primary" value="launch" data-launch-single>Launch preview</button>
+            </footer>
+          </form>
+        </dialog>
+        <dialog class="session-dialog" data-session-dialog aria-labelledby="session-dialog-title">
+          <form method="dialog">
+            <p class="quiet-label">ACTIVE CONNECTION</p>
+            <h2 id="session-dialog-title">Disconnect and sign out?</h2>
+            <p>Connect will close the local connection, revoke the active grant, restore the application profile, and then sign you out.</p>
+            <footer>
+              <button class="button button--secondary" value="cancel">Keep working</button>
+              <button class="button button--primary" value="confirm" data-confirm-sign-out>Disconnect and sign out</button>
+            </footer>
+          </form>
+        </dialog>
+        <div class="app-toast" data-toast hidden role="status" aria-live="polite"></div>
+        <p class="sr-only" data-live-region aria-live="polite"></p>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
