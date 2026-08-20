@@ -68,6 +68,21 @@ services:
       traefik.http.services.alzette-gateway.loadbalancer.server.port: "8080"
       traefik.http.middlewares.alzette-gateway-forwarded-proto.headers.customrequestheaders.X-Forwarded-Proto: https
 
+  public:
+    networks:
+      - default
+      - traefik
+    ports: !reset []
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik-net}
+      traefik.http.routers.alzette-public.rule: Host(`${ALZETTE_PUBLIC_HOST:-alzette.systems}`)
+      traefik.http.routers.alzette-public.entrypoints: ${TRAEFIK_ENTRYPOINT:-web}
+      traefik.http.routers.alzette-public.service: alzette-public
+      traefik.http.routers.alzette-public.middlewares: alzette-public-forwarded-proto
+      traefik.http.services.alzette-public.loadbalancer.server.port: "8082"
+      traefik.http.middlewares.alzette-public-forwarded-proto.headers.customrequestheaders.X-Forwarded-Proto: https
+
 networks:
   traefik:
     external: true
