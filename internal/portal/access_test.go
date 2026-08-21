@@ -197,6 +197,11 @@ func TestAccessWorkspaceIsServerRenderedEscapedAndKeepsApplicationAccess(t *test
 	if !strings.Contains(body, "Owner &lt;script&gt;alert(1)&lt;/script&gt;") {
 		t.Fatal("person display name was not HTML escaped")
 	}
+	script := httptest.NewRecorder()
+	app.ServeHTTP(script, httptest.NewRequest(http.MethodGet, "/access.js", nil))
+	if script.Code != http.StatusOK || !strings.Contains(script.Header().Get("Content-Type"), "javascript") {
+		t.Fatalf("access enhancement status=%d type=%q", script.Code, script.Header().Get("Content-Type"))
+	}
 	if csp := response.Header().Get("Content-Security-Policy"); csp == "" || strings.Contains(csp, "unsafe-") {
 		t.Fatalf("unsafe CSP %q", csp)
 	}

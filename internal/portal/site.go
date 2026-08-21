@@ -273,9 +273,9 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.login(w, r)
 	case r.URL.Path == "/logout" || r.URL.Path == "/api/portal/logout":
 		a.logout(w, r)
-	case r.URL.Path == "/login.css" || r.URL.Path == "/portal.css" || r.URL.Path == "/portal.js" || r.URL.Path == "/alzette-mark.svg":
+	case r.URL.Path == "/login.css" || r.URL.Path == "/portal.css" || r.URL.Path == "/portal.js" || r.URL.Path == "/access.js" || r.URL.Path == "/alzette-mark.svg":
 		a.serveAsset(w, r, strings.TrimPrefix(r.URL.Path, "/"))
-	case r.URL.Path == "/app/portal.css" || r.URL.Path == "/app/portal.js" || r.URL.Path == "/app/alzette-mark.svg":
+	case r.URL.Path == "/app/portal.css" || r.URL.Path == "/app/portal.js" || r.URL.Path == "/app/access.js" || r.URL.Path == "/app/alzette-mark.svg":
 		a.serveAsset(w, r, strings.TrimPrefix(r.URL.Path, "/app/"))
 	case r.URL.Path == "/app/overview":
 		a.serveOverview(w, r)
