@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -34,8 +35,40 @@ type accessPageView struct {
 	DraftInvitation    workforce.CreateInvitationInput
 	InvitationDelivery *workforce.InvitationDelivery
 	InvitationURL      string
+	Connect            connectDownloadView
 	Error              string
 	Notice             string
+}
+
+type connectDownloadView struct {
+	Available   bool
+	Version     string
+	ReleaseURL  string
+	MacARM64URL string
+	MacX64URL   string
+	WindowsURL  string
+	LinuxURL    string
+}
+
+var connectReleaseVersionPattern = regexp.MustCompile(`^[0-9][0-9A-Za-z._+-]{0,63}$`)
+
+func newConnectDownloadView(value string) (connectDownloadView, error) {
+	version := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(value), "connect-v"))
+	if version == "" {
+		return connectDownloadView{}, nil
+	}
+	if !connectReleaseVersionPattern.MatchString(version) {
+		return connectDownloadView{}, errors.New("ALZETTE_CONNECT_RELEASE_VERSION is invalid")
+	}
+	base := "https://github.com/alzette-systems/alzette-connect/releases"
+	download := base + "/download/connect-v" + version + "/Alzette-Connect-" + version + "-"
+	return connectDownloadView{
+		Available: true, Version: version, ReleaseURL: base + "/tag/connect-v" + version,
+		MacARM64URL: download + "macOS-arm64-unsigned-demo.zip",
+		MacX64URL:   download + "macOS-x64-unsigned-demo.zip",
+		WindowsURL:  download + "windows-x64-unsigned-demo.exe",
+		LinuxURL:    download + "linux-x64-unsigned-demo.deb",
+	}, nil
 }
 
 func newAccessRenderer() (*accessRenderer, error) {
@@ -107,7 +140,8 @@ func (a *App) accessView(r *http.Request, session platform.PortalSession) (acces
 			Environment:        fallbackText(session.Current.EnvironmentName, "Environment unavailable"),
 			ProjectEnvironment: joinScope(session.Current.ProjectName, session.Current.EnvironmentName),
 		},
-		Active: "people",
+		Active:  "people",
+		Connect: a.connectDownload,
 	}
 	if a.workforce == nil {
 		view.UserLabel = "Legacy portal member"
@@ -304,6 +338,9 @@ func (a *App) renderInvitationDelivery(w http.ResponseWriter, r *http.Request, s
 	view.Active = "invitation-created"
 	view.InvitationDelivery = &delivery
 	view.InvitationURL = "/accept-invite?token=" + url.QueryEscape(delivery.Token)
+	if a.publicControlURL != "" {
+		view.InvitationURL = a.publicControlURL + view.InvitationURL
+	}
 	a.renderAccessPage(w, r, view, status)
 }
 

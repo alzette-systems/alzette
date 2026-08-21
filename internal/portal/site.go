@@ -38,7 +38,7 @@ const (
 	maximumRows     = 10000
 )
 
-var staticAssetNames = []string{"login.html", "login.css", "portal.html", "portal.css", "portal.js", "alzette-mark.svg"}
+var staticAssetNames = []string{"login.html", "login.css", "portal.html", "portal.css", "portal.js", "access.js", "alzette-mark.svg"}
 
 type Config struct {
 	Store                      platform.Store
@@ -51,6 +51,8 @@ type Config struct {
 	GenerateCSRFToken          func() (string, error)
 	NewID                      func(string) (string, error)
 	PublicGatewayURL           string
+	PublicControlURL           string
+	ConnectReleaseVersion      string
 	AllowInsecurePublicGateway bool
 	Catalogue                  *catalogue.Service
 	Endpoints                  *endpoints.Service
@@ -76,7 +78,9 @@ type App struct {
 	generateCSRFToken    func() (string, error)
 	newID                func(string) (string, error)
 	publicGatewayURL     string
+	publicControlURL     string
 	chatCompletionsURL   string
+	connectDownload      connectDownloadView
 	csp                  string
 	catalogue            *catalogue.Service
 	endpoints            *endpoints.Service
@@ -117,6 +121,14 @@ func New(config Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	publicControlURL, err := validatePublicControlURL(config.PublicControlURL, config.AllowInsecurePublicGateway)
+	if err != nil {
+		return nil, err
+	}
+	connectDownload, err := newConnectDownloadView(config.ConnectReleaseVersion)
+	if err != nil {
+		return nil, err
+	}
 	assets := make(map[string]asset, len(staticAssetNames))
 	for _, name := range staticAssetNames {
 		value, err := readAsset(config.StaticDirectory, name)
@@ -148,7 +160,7 @@ func New(config Config) (*App, error) {
 		store: config.Store, portalStore: config.PortalStore, assets: assets,
 		cookieSecure: config.CookieSecure, sessionTTL: config.SessionTTL, clock: config.Clock,
 		generateSessionToken: config.GenerateSessionToken, generateCSRFToken: config.GenerateCSRFToken, newID: config.NewID,
-		publicGatewayURL: publicBase, chatCompletionsURL: chatURL,
+		publicGatewayURL: publicBase, publicControlURL: publicControlURL, chatCompletionsURL: chatURL, connectDownload: connectDownload,
 		catalogue: config.Catalogue, endpoints: config.Endpoints, billing: config.Billing, workforce: config.Workforce,
 		overview: overview, accessRenderer: accessRenderer, oidc: config.OIDC,
 		csp: csp,
@@ -182,6 +194,25 @@ func validatePublicGatewayURL(value string, allowInsecure bool) (string, string,
 	parsed.Path = ""
 	base := strings.TrimRight(parsed.String(), "/")
 	return base, base + "/v1/chat/completions", nil
+}
+
+func validatePublicControlURL(value string, allowInsecure bool) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || strings.Contains(parsed.EscapedPath(), "%") {
+		return "", errors.New("ALZETTE_PUBLIC_CONTROL_URL is invalid")
+	}
+	if parsed.Scheme != "https" && !(allowInsecure && parsed.Scheme == "http") {
+		return "", errors.New("ALZETTE_PUBLIC_CONTROL_URL must use HTTPS unless the explicit LAN/dev override is enabled")
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return "", errors.New("ALZETTE_PUBLIC_CONTROL_URL must not contain a path")
+	}
+	parsed.Path = ""
+	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
 func readAsset(directory, name string) (asset, error) {

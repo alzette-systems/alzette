@@ -33,6 +33,7 @@ services:
     environment:
       ALZETTE_PUBLIC_CONTROL_URL: https://${ALZETTE_CONTROL_HOST:-app.alzette.systems}
       ALZETTE_PUBLIC_GATEWAY_URL: https://${ALZETTE_GATEWAY_HOST:-inference.alzette.systems}
+      ALZETTE_CONNECT_RELEASE_VERSION: ${ALZETTE_CONNECT_RELEASE_VERSION:-0.3.0-demo.1}
       ALZETTE_ALLOW_INSECURE_PUBLIC_GATEWAY: "false"
       ALZETTE_PORTAL_COOKIE_SECURE: "true"
       ALZETTE_WORKFORCE_OIDC_ISSUER: https://${ALZETTE_AUTH_HOST:-auth.alzette.systems}

@@ -289,6 +289,7 @@ func writeControlSite(t *testing.T, directory string) {
 		"portal.html":      `<!doctype html><head><meta name="alzette-api-mode" content="fallback"></head><main></main>`,
 		"portal.css":       "portal-css",
 		"portal.js":        "'use strict';",
+		"access.js":        "'use strict';",
 		"alzette-mark.svg": `<svg xmlns="http://www.w3.org/2000/svg"></svg>`,
 	}
 	for name, contents := range files {

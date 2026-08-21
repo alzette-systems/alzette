@@ -14,6 +14,7 @@ FORM: Established Operate surface, scoped-ledger extension; no concept seed beca
   <title>Access — Alzette Systems</title>
   <link rel="icon" href="/alzette-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/portal.css">
+  <script src="/access.js" defer></script>
   {{if eq .Active "applications"}}<meta name="alzette-api-mode" content="live"><script src="/portal.js" defer></script>{{end}}
 </head>
 <body class="portal-page portal-page--server" data-view="access">
@@ -119,6 +120,25 @@ FORM: Established Operate surface, scoped-ledger extension; no concept seed beca
               <div><p class="panel-kicker">Company relationships</p><h2 id="people-title">People</h2><p>Ownership is protected and is not an editable role. Employee model access is the union of enabled group assignments.</p></div>
               {{if .Access.CanManage}}<a class="button button--dark" href="/app/access/invitations/new">Invite employee <span aria-hidden="true">+</span></a>{{end}}
             </div>
+            {{if .Connect.Available}}
+            <section class="connect-download" aria-labelledby="connect-download-title">
+              <div class="connect-download__copy">
+                <p class="panel-kicker">Employee application · demo {{.Connect.Version}}</p>
+                <h3 id="connect-download-title">Open ChatGPT with your company models.</h3>
+                <p>Alzette Connect signs you in, shows only the models assigned to you, and opens the Codex workspace inside the ChatGPT app without giving you a permanent API key.</p>
+              </div>
+              <div class="connect-download__actions">
+                <a class="button button--dark" href="{{.Connect.MacARM64URL}}">Download for Mac <span aria-hidden="true">↓</span></a>
+                <div class="connect-download__alternates" aria-label="Other Alzette Connect downloads">
+                  <a href="{{.Connect.MacX64URL}}">Intel Mac</a>
+                  <a href="{{.Connect.WindowsURL}}">Windows</a>
+                  <a href="{{.Connect.LinuxURL}}">Linux</a>
+                  <a href="{{.Connect.ReleaseURL}}">Release details</a>
+                </div>
+                <p><strong>Unsigned demo.</strong> On macOS, use Control-click → Open the first time. Production signing is still pending.</p>
+              </div>
+            </section>
+            {{end}}
             <div class="table-wrap access-table-wrap">
               <table class="access-people-table">
                 <thead><tr><th scope="col">Person</th><th scope="col">Relationship</th><th scope="col">Groups</th><th scope="col">Effective models</th><th scope="col">Status</th></tr></thead>
@@ -205,7 +225,7 @@ FORM: Established Operate surface, scoped-ledger extension; no concept seed beca
             <div class="access-editor__intro"><p class="panel-kicker">Manual delivery</p><h2 id="invitation-created-title">Invitation created.</h2><p>Send this one-time acceptance link to {{.InvitationDelivery.Invitation.Email}} through a trusted channel. The link is not stored in plaintext and will not be shown again.</p></div>
             <div class="access-form">
               <div class="invitation-facts"><div><span>Employee</span><strong>{{if .InvitationDelivery.Invitation.DisplayName}}{{.InvitationDelivery.Invitation.DisplayName}}{{else}}{{.InvitationDelivery.Invitation.Email}}{{end}}</strong></div><div><span>Initial groups</span><strong>{{range $index, $group := .InvitationDelivery.Invitation.Groups}}{{if $index}}, {{end}}{{$group.Name}}{{end}}</strong></div><div><span>Expires</span><strong>{{.InvitationDelivery.Invitation.ExpiresAt.Format "02 Jan 2006, 15:04 UTC"}}</strong></div></div>
-              <label><span>Acceptance link · shown once</span><input class="one-time-link" type="text" readonly value="{{.InvitationURL}}" aria-describedby="invitation-link-help"><small id="invitation-link-help">Copy the complete link now. Resend rotates it and permanently invalidates this value.</small></label>
+              <label><span>Acceptance link · shown once</span><span class="invitation-link-control"><input id="invitation-link" class="one-time-link" type="text" readonly value="{{.InvitationURL}}" aria-describedby="invitation-link-help invitation-copy-status"><button class="button button--quiet" type="button" data-copy-invitation>Copy link</button></span><small id="invitation-link-help">Copy the complete link now. Resend rotates it and permanently invalidates this value.</small><small id="invitation-copy-status" class="copy-status" aria-live="polite"></small></label>
               <div class="form-actions"><a class="button button--dark" href="/app/access/people">I copied the link</a></div>
             </div>
           </section>

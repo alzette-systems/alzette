@@ -136,7 +136,7 @@ func writePortalAssets(t *testing.T, directory string) {
 	files := map[string]string{
 		"login.html": "<!doctype html><head>" + rawMarker + "</head><form></form>",
 		"login.css":  "body{}", "portal.html": "<!doctype html><head>" + rawMarker + `<script src="portal.js" defer></script></head><main></main>`,
-		"portal.css": "main{}", "portal.js": "'use strict';", "alzette-mark.svg": `<svg xmlns="http://www.w3.org/2000/svg"></svg>`,
+		"portal.css": "main{}", "portal.js": "'use strict';", "access.js": "'use strict';", "alzette-mark.svg": `<svg xmlns="http://www.w3.org/2000/svg"></svg>`,
 	}
 	for name, contents := range files {
 		if err := os.WriteFile(filepath.Join(directory, name), []byte(contents), 0600); err != nil {
@@ -780,6 +780,26 @@ func TestPublicGatewayValidation(t *testing.T) {
 		if (err == nil) != test.valid {
 			t.Fatalf("gateway validation valid=%t", test.valid)
 		}
+	}
+}
+
+func TestPublicControlAndConnectReleaseValidation(t *testing.T) {
+	for _, test := range []struct {
+		value string
+		allow bool
+		valid bool
+	}{{"", false, true}, {"https://app.alzette.systems", false, true}, {"http://127.0.0.1:8081", true, true}, {"http://app.example.test", false, false}, {"https://app.example.test/path", false, false}} {
+		_, err := validatePublicControlURL(test.value, test.allow)
+		if (err == nil) != test.valid {
+			t.Fatalf("control URL %q validation valid=%t err=%v", test.value, test.valid, err)
+		}
+	}
+	download, err := newConnectDownloadView("connect-v0.3.0-demo.1")
+	if err != nil || !download.Available || !strings.Contains(download.MacARM64URL, "/connect-v0.3.0-demo.1/Alzette-Connect-0.3.0-demo.1-macOS-arm64-unsigned-demo.zip") {
+		t.Fatalf("download=%#v err=%v", download, err)
+	}
+	if _, err := newConnectDownloadView("../../wrong"); err == nil {
+		t.Fatal("unsafe Connect release version was accepted")
 	}
 }
 

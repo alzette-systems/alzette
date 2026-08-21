@@ -13,7 +13,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 COPY --from=build /out/alzette /usr/local/bin/alzette
-COPY login.html login.css portal.html portal.css portal.js alzette-mark.svg /app/portal/
+COPY login.html login.css portal.html portal.css portal.js access.js alzette-mark.svg /app/portal/
 COPY index.html docs.html site.css alzette-mark.svg /app/public/
 
 USER nonroot:nonroot

@@ -795,6 +795,20 @@ button:disabled { cursor: not-allowed; opacity: .52; }
 .invitation-facts > div { display: grid; grid-template-columns: minmax(120px, .35fr) minmax(0, 1fr); gap: 18px; padding: 12px 0; border-bottom: 1px solid var(--portal-line); }
 .invitation-facts span { color: var(--portal-faint); font-family: var(--portal-mono); font-size: 10px; font-weight: 650; text-transform: uppercase; }
 .invitation-facts strong { color: var(--portal-ink); font-size: 13px; overflow-wrap: anywhere; }
+.connect-download { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); gap: 34px; margin: 0 0 30px; padding: 26px 28px; border: 1px solid var(--portal-dark-line); background: var(--portal-dark); color: #fff; }
+.connect-download__copy h3 { max-width: 620px; margin: 8px 0 10px; color: #fff; font-size: clamp(25px, 3vw, 38px); font-weight: 630; letter-spacing: -.035em; line-height: 1.06; }
+.connect-download__copy > p:last-child { max-width: 650px; margin: 0; color: var(--portal-dark-dim); }
+.connect-download__actions { display: grid; align-content: center; gap: 12px; }
+.connect-download__actions > .button { justify-content: space-between; border-color: #fff; background: #fff; color: var(--portal-dark); }
+.connect-download__actions > .button:hover { background: var(--portal-paper-deep); }
+.connect-download__alternates { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.connect-download__alternates a { color: #fff; font-family: var(--portal-mono); font-size: 10px; text-underline-offset: 3px; }
+.connect-download__actions > p { margin: 0; color: var(--portal-dark-dim); font-size: 11px; line-height: 1.45; }
+.connect-download__actions > p strong { color: #fff; }
+.invitation-link-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
+.invitation-link-control .button { min-width: 104px; }
+.copy-status:empty { display: none; }
+.copy-status:not(:empty) { color: var(--portal-green-dark); }
 .one-time-link { font-family: var(--portal-mono) !important; font-size: 12px !important; }
 .one-time-link[readonly] { background: var(--portal-green-soft) !important; }
 
@@ -805,12 +819,15 @@ button:disabled { cursor: not-allowed; opacity: .52; }
   .group-row dl div:first-child { border-left: 0; }
   .group-editors { grid-template-columns: 1fr; }
   .group-policy-summary { grid-template-columns: 1fr; gap: 5px; }
+  .connect-download { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .access-subnav { margin-right: -16px; margin-left: -16px; padding-left: 1px; }
   .access-subnav a, .access-subnav > span { padding-right: 13px; padding-left: 13px; }
   .access-section__heading, .group-detail-heading, .danger-zone { display: grid; align-items: start; }
   .invitation-facts > div { grid-template-columns: 1fr; gap: 4px; }
+  .connect-download { padding: 22px 20px; }
+  .invitation-link-control { grid-template-columns: 1fr; }
   .capability-note { max-width: none; text-align: left; }
   .access-boundary, .access-form { padding: 20px 18px; }
   .group-row dl { grid-template-columns: 1fr; }

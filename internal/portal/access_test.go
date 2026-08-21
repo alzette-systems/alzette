@@ -139,7 +139,7 @@ func newAccessTestAppWithOIDC(t *testing.T, workforceStore *workforceStub, provi
 	app, err := New(Config{
 		Store: portalStore, PortalStore: portalStore, StaticDirectory: directory, SessionTTL: time.Hour,
 		Clock: func() time.Time { return now }, Workforce: workforce.New(workforceStore), OIDC: provider,
-		PublicGatewayURL: "http://127.0.0.1:8080", AllowInsecurePublicGateway: true,
+		PublicGatewayURL: "http://127.0.0.1:8080", PublicControlURL: "http://portal.example.test", ConnectReleaseVersion: "0.3.0-demo.1", AllowInsecurePublicGateway: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -184,12 +184,12 @@ func TestAccessWorkspaceIsServerRenderedEscapedAndKeepsApplicationAccess(t *test
 	if response.Code != http.StatusOK || !strings.Contains(response.Header().Get("Content-Type"), "text/html") {
 		t.Fatalf("status=%d type=%q", response.Code, response.Header().Get("Content-Type"))
 	}
-	for _, required := range []string{"People and model access", "Company owner", "Erin Employee", "alzette-chat", "/app/access/groups", "/app/access?view=applications", `<details class="server-mobile-nav">`} {
+	for _, required := range []string{"People and model access", "Company owner", "Erin Employee", "alzette-chat", "/app/access/groups", "/app/access?view=applications", `<details class="server-mobile-nav">`, `/access.js`, `Open ChatGPT with your company models.`, `Alzette-Connect-0.3.0-demo.1-macOS-arm64-unsigned-demo.zip`} {
 		if !strings.Contains(body, required) {
 			t.Fatalf("access page missing %q", required)
 		}
 	}
-	for _, forbidden := range []string{"<script", "/portal.js", "Owner <script>alert(1)</script>", "org_admin", "project_admin", "role picker"} {
+	for _, forbidden := range []string{"<script>", "/portal.js", "Owner <script>alert(1)</script>", "org_admin", "project_admin", "role picker"} {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("access page contains %q", forbidden)
 		}
@@ -319,7 +319,7 @@ func TestOwnerCreatesAndRevokesExactEmployeeInvitation(t *testing.T) {
 	if response.Code != http.StatusCreated || store.invited.Email != "employee@example.test" || store.invited.DisplayName != "Erin Invited" || len(store.invited.GroupIDs) != 1 {
 		t.Fatalf("create status=%d invited=%#v", response.Code, store.invited)
 	}
-	for _, expected := range []string{"Invitation created", "/accept-invite?token=manual_invitation_token", "Research", "shown once"} {
+	for _, expected := range []string{"Invitation created", "http://portal.example.test/accept-invite?token=manual_invitation_token", "Research", "shown once", `data-copy-invitation`, `Copy link`} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("invitation result missing %q", expected)
 		}

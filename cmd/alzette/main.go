@@ -433,7 +433,8 @@ func newApplicationHandler(mode, staticDirectory string, database *sql.DB, store
 		site, err := portal.New(portal.Config{
 			Store: store, PortalStore: portalStore, StaticDirectory: staticDirectory,
 			CookieSecure: envBoolDefault("ALZETTE_PORTAL_COOKIE_SECURE", true), SessionTTL: sessionTTL,
-			PublicGatewayURL: os.Getenv("ALZETTE_PUBLIC_GATEWAY_URL"), AllowInsecurePublicGateway: envBool("ALZETTE_ALLOW_INSECURE_PUBLIC_GATEWAY"),
+			PublicGatewayURL: os.Getenv("ALZETTE_PUBLIC_GATEWAY_URL"), PublicControlURL: os.Getenv("ALZETTE_PUBLIC_CONTROL_URL"),
+			ConnectReleaseVersion: os.Getenv("ALZETTE_CONNECT_RELEASE_VERSION"), AllowInsecurePublicGateway: envBool("ALZETTE_ALLOW_INSECURE_PUBLIC_GATEWAY"),
 			Catalogue: catalogueService, Endpoints: endpointService, Billing: billingService, Workforce: workforceService, OIDC: oidcProvider,
 		})
 		if err != nil {
