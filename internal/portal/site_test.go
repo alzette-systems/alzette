@@ -795,8 +795,12 @@ func TestPublicControlAndConnectReleaseValidation(t *testing.T) {
 		}
 	}
 	download, err := newConnectDownloadView("connect-v0.3.0-demo.1")
-	if err != nil || !download.Available || !strings.Contains(download.MacARM64URL, "/connect-v0.3.0-demo.1/Alzette-Connect-0.3.0-demo.1-macOS-arm64-unsigned-demo.zip") {
+	if err != nil || !download.Available || download.Signed || !strings.Contains(download.MacARM64URL, "/connect-v0.3.0-demo.1/Alzette-Connect-0.3.0-demo.1-macOS-arm64-unsigned-demo.zip") {
 		t.Fatalf("download=%#v err=%v", download, err)
+	}
+	stable, err := newConnectDownloadView("connect-v0.3.0")
+	if err != nil || !stable.Available || !stable.Signed || stable.WindowsURL != "" || stable.LinuxURL != "" || !strings.Contains(stable.MacARM64URL, "/connect-v0.3.0/Alzette-Connect-0.3.0-macOS-arm64.zip") {
+		t.Fatalf("stable download=%#v err=%v", stable, err)
 	}
 	if _, err := newConnectDownloadView("../../wrong"); err == nil {
 		t.Fatal("unsafe Connect release version was accepted")

@@ -123,7 +123,7 @@ FORM: Established Operate surface, scoped-ledger extension; no concept seed beca
             {{if .Connect.Available}}
             <section class="connect-download" aria-labelledby="connect-download-title">
               <div class="connect-download__copy">
-                <p class="panel-kicker">Employee application · demo {{.Connect.Version}}</p>
+                <p class="panel-kicker">Employee application · {{if .Connect.Signed}}signed release{{else}}demo{{end}} {{.Connect.Version}}</p>
                 <h3 id="connect-download-title">Open ChatGPT with your company models.</h3>
                 <p>Alzette Connect signs you in, shows only the models assigned to you, and opens the Codex workspace inside the ChatGPT app without giving you a permanent API key.</p>
               </div>
@@ -131,11 +131,11 @@ FORM: Established Operate surface, scoped-ledger extension; no concept seed beca
                 <a class="button button--dark" href="{{.Connect.MacARM64URL}}">Download for Mac <span aria-hidden="true">↓</span></a>
                 <div class="connect-download__alternates" aria-label="Other Alzette Connect downloads">
                   <a href="{{.Connect.MacX64URL}}">Intel Mac</a>
-                  <a href="{{.Connect.WindowsURL}}">Windows</a>
-                  <a href="{{.Connect.LinuxURL}}">Linux</a>
+                  {{if .Connect.WindowsURL}}<a href="{{.Connect.WindowsURL}}">Windows</a>{{end}}
+                  {{if .Connect.LinuxURL}}<a href="{{.Connect.LinuxURL}}">Linux</a>{{end}}
                   <a href="{{.Connect.ReleaseURL}}">Release details</a>
                 </div>
-                <p><strong>Unsigned demo.</strong> On macOS, use Control-click → Open the first time. Production signing is still pending.</p>
+                {{if .Connect.Signed}}<p><strong>Verified for macOS.</strong> Developer ID signed, Apple-notarized, and stapled for a normal first launch.</p>{{else}}<p><strong>Unsigned demo.</strong> On macOS, use Control-click → Open the first time. Production signing is still pending.</p>{{end}}
               </div>
             </section>
             {{end}}

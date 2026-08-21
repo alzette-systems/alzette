@@ -42,6 +42,7 @@ type accessPageView struct {
 
 type connectDownloadView struct {
 	Available   bool
+	Signed      bool
 	Version     string
 	ReleaseURL  string
 	MacARM64URL string
@@ -51,6 +52,7 @@ type connectDownloadView struct {
 }
 
 var connectReleaseVersionPattern = regexp.MustCompile(`^[0-9][0-9A-Za-z._+-]{0,63}$`)
+var connectStableVersionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 
 func newConnectDownloadView(value string) (connectDownloadView, error) {
 	version := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(value), "connect-v"))
@@ -62,6 +64,14 @@ func newConnectDownloadView(value string) (connectDownloadView, error) {
 	}
 	base := "https://github.com/alzette-systems/alzette-connect/releases"
 	download := base + "/download/connect-v" + version + "/Alzette-Connect-" + version + "-"
+	signed := connectStableVersionPattern.MatchString(version)
+	if signed {
+		return connectDownloadView{
+			Available: true, Signed: true, Version: version, ReleaseURL: base + "/tag/connect-v" + version,
+			MacARM64URL: download + "macOS-arm64.zip",
+			MacX64URL:   download + "macOS-x64.zip",
+		}, nil
+	}
 	return connectDownloadView{
 		Available: true, Version: version, ReleaseURL: base + "/tag/connect-v" + version,
 		MacARM64URL: download + "macOS-arm64-unsigned-demo.zip",
