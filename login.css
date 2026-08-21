@@ -29,6 +29,7 @@ a { color: inherit; }
 .login-panel h1 { margin: 0; font-size: clamp(44px, 6vw, 72px); font-weight: 640; letter-spacing: -.055em; line-height: .96; }
 .login-lead { max-width: 450px; margin: 18px 0 0; color: var(--login-dim); font-size: 17px; }
 .login-transport-notice { display: flex; align-items: center; gap: 9px; margin-top: 26px; padding: 9px 11px; border: 1px solid #e8d7b6; background: var(--login-amber-soft); color: var(--login-amber); font-family: var(--login-mono); font-size: 11px; }
+.login-transport-notice[hidden] { display: none; }
 .login-transport-notice > span:first-child { display: inline-grid; width: 16px; height: 16px; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; font-weight: 700; }
 .login-form { display: grid; gap: 16px; margin-top: 32px; }
 .login-form label { display: grid; gap: 6px; color: var(--login-dim); font-family: var(--login-mono); font-size: 10px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; }
