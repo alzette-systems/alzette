@@ -31,6 +31,102 @@ type response struct {
 	Data   json.RawMessage `json:"data"`
 }
 
+const (
+	alzetteBrandURL = "https://alzette.systems"
+	alzetteMarkURL  = alzetteBrandURL + "/alzette-mark.svg"
+	alzetteFormCSS  = `.loginBackground {
+  background: #faf9f6 !important;
+}
+.login-content {
+  width: 420px !important;
+  max-width: calc(100vw - 32px) !important;
+}
+.login-panel {
+  width: 100% !important;
+  overflow: hidden;
+  border: 1px solid #d9ddd8 !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+.login-form {
+  width: 100% !important;
+  padding: 40px !important;
+}
+.login-logo-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 30px !important;
+}
+.login-logo-box::after {
+  content: "Sign in to Alzette";
+  color: #10151a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.panel-logo {
+  width: 64px !important;
+  height: 64px !important;
+  margin: 0 0 22px !important;
+  object-fit: contain;
+}
+.signin-methods,
+.login-auto-signin,
+.login-forget-password,
+.anticon-global {
+  display: none !important;
+}
+.login-signup-link {
+  display: flex !important;
+  justify-content: center !important;
+  margin: 16px 0 0 !important;
+  font-size: 14px;
+}
+.login-signup-link a {
+  color: #087c4e !important;
+  font-weight: 620;
+}
+.ant-form-item {
+  margin-bottom: 16px !important;
+}
+.ant-input-affix-wrapper {
+  min-height: 48px;
+  border-color: #d9ddd8 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+.ant-input-affix-wrapper:hover {
+  border-color: #6b747c !important;
+}
+.ant-input-affix-wrapper-focused {
+  border-color: #0d9e63 !important;
+  box-shadow: 0 0 0 3px rgba(13, 158, 99, 0.18) !important;
+}
+.login-button {
+  min-height: 48px;
+  border-color: #10151a !important;
+  border-radius: 4px !important;
+  background: #10151a !important;
+  box-shadow: none !important;
+  font-weight: 620;
+}
+.login-button:hover,
+.login-button:focus-visible {
+  border-color: #087c4e !important;
+  background: #087c4e !important;
+}
+#footer {
+  padding: 24px !important;
+  background: #faf9f6 !important;
+  color: #4f5b64 !important;
+}`
+	alzetteFooterHTML = `<span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#4f5b64;font-size:13px">Alzette Systems · Luxembourg</span>`
+)
+
 func Run(ctx context.Context, config Config) (Result, error) {
 	endpoint, err := validate(config)
 	if err != nil {
@@ -48,11 +144,23 @@ func Run(ctx context.Context, config Config) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if organisation == nil {
+	organisationExists := organisation != nil
+	if !organisationExists {
 		organisation = map[string]interface{}{"owner": "admin", "name": "alzette", "displayName": "Alzette Workforce", "passwordType": "bcrypt", "passwordOptions": []string{"AtLeast8", "Uppercase", "Lowercase", "Number"}, "defaultApplication": "app-built-in", "defaultTokenFormat": "JWT", "isProfilePublic": false, "languages": []string{"en", "fr", "de"}}
+	}
+	organisation["displayName"] = "Alzette"
+	organisation["logo"] = alzetteMarkURL
+	organisation["logoDark"] = alzetteMarkURL
+	organisation["favicon"] = alzetteMarkURL
+	organisation["websiteUrl"] = alzetteBrandURL
+	organisation["languages"] = []string{"en"}
+	organisation["themeData"] = map[string]interface{}{"isEnabled": true, "themeType": "default", "colorPrimary": "#0d9e63", "borderRadius": 4, "isCompact": false}
+	if !organisationExists {
 		if _, err = post(ctx, client, endpoint+"/api/add-organization", organisation); err != nil {
 			return Result{}, fmt.Errorf("create Casdoor organisation: %w", err)
 		}
+	} else if _, err = post(ctx, client, endpoint+"/api/update-organization?id=admin/alzette", organisation); err != nil {
+		return Result{}, fmt.Errorf("configure Casdoor organisation: %w", err)
 	}
 	application, err := getObject(ctx, client, endpoint+"/api/get-application?id=admin/app-built-in")
 	if err != nil || application == nil {
@@ -62,6 +170,11 @@ func Run(ctx context.Context, config Config) (Result, error) {
 		return Result{}, err
 	}
 	application["displayName"] = "Alzette"
+	application["title"] = "Alzette — Sign in"
+	application["description"] = "Sign in to use the model access assigned by your company."
+	application["logo"] = alzetteMarkURL
+	application["favicon"] = alzetteMarkURL
+	application["homepageUrl"] = alzetteBrandURL
 	application["organization"] = "alzette"
 	application["clientId"] = config.ClientID
 	application["clientSecret"] = config.ClientSecret
@@ -77,7 +190,16 @@ func Run(ctx context.Context, config Config) (Result, error) {
 	application["refreshExpireInHours"] = 24
 	application["enablePassword"] = true
 	application["enableSignUp"] = true
+	application["enableAutoSignin"] = false
+	application["enableCodeSignin"] = false
+	application["enableWebAuthn"] = false
 	application["disableSignin"] = false
+	application["signinMethods"] = []map[string]interface{}{{"name": "Password", "displayName": "Password", "rule": "All"}}
+	application["themeData"] = map[string]interface{}{"isEnabled": true, "themeType": "default", "colorPrimary": "#0d9e63", "borderRadius": 4, "isCompact": false}
+	application["footerHtml"] = alzetteFooterHTML
+	application["formCss"] = alzetteFormCSS
+	application["formCssMobile"] = alzetteFormCSS
+	configureSigninItems(application)
 	application["signupItems"] = []map[string]interface{}{
 		{"name": "Username", "visible": true, "required": true, "rule": "None"},
 		{"name": "Display name", "visible": true, "required": true, "rule": "None"},
@@ -101,6 +223,35 @@ func Run(ctx context.Context, config Config) (Result, error) {
 		}
 	}
 	return Result{Application: "app-built-in", Organisation: "alzette", DemoUser: config.DemoUsername}, nil
+}
+
+func configureSigninItems(application map[string]interface{}) {
+	items, ok := application["signinItems"].([]interface{})
+	if !ok {
+		return
+	}
+	for _, raw := range items {
+		item, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		switch item["name"] {
+		case "Back button", "Languages", "Signin methods", "Verification code", "Agreement", "Forgot password?", "Providers":
+			item["visible"] = false
+		case "Username":
+			item["visible"] = true
+			item["placeholder"] = "Work email"
+		case "Password":
+			item["visible"] = true
+			item["placeholder"] = "Password"
+		case "Login button":
+			item["visible"] = true
+			item["label"] = "Sign in"
+		case "Signup link":
+			item["visible"] = true
+			item["label"] = "Create your account"
+		}
+	}
 }
 
 func validate(config Config) (string, error) {
