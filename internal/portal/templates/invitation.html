@@ -10,19 +10,30 @@
 </head>
 <body class="login-page">
   <main class="login-shell">
-    <section class="login-card" aria-labelledby="invite-heading">
+    <section class="login-panel" aria-labelledby="invite-heading">
       <a class="login-brand" href="/" aria-label="Alzette Systems"><img src="/alzette-mark.svg" alt="" width="34" height="34"><span>alzette<span>.systems</span></span></a>
       <p class="login-kicker">Employee invitation</p>
-      <h1 id="invite-heading">Confirm your identity to continue.</h1>
-      <p>This clean page intentionally does not disclose the company, inviter, groups, or model endpoints before authentication.</p>
+      <h1 id="invite-heading">Join your company on Alzette.</h1>
+      <p class="login-lead">Create your account with the invited work email, or sign in if you already have one.</p>
       {{if .Error}}<div class="login-error" role="alert">{{.Error}}</div>{{end}}
       {{if .Available}}
-      <form method="post" action="/accept-invite"><input type="hidden" name="intent" value="continue"><button type="submit">Continue with company sign-in →</button></form>
-      <p class="login-note">Use the exact email address that received the invitation. Authentication alone never grants access; Alzette rechecks the active invitation and group assignments before creating an employee membership.</p>
+      <div class="login-invitation-actions">
+        <form method="post" action="/accept-invite"><input type="hidden" name="intent" value="create_account"><button class="login-submit" type="submit">Create account <span aria-hidden="true">→</span></button></form>
+        <form method="post" action="/accept-invite"><input type="hidden" name="intent" value="sign_in"><button class="login-secondary" type="submit">I already have an account</button></form>
+      </div>
+      <p class="login-footnote">Use the exact work email that received the invitation. Authentication alone grants nothing; Alzette rechecks the active invitation before creating employee access.</p>
       {{else}}
       <div class="login-error" role="status">Employee federated sign-in is not configured on this deployment. The invitation remains pending; ask the company owner or Alzette support to retry after sign-in is enabled.</div>
       {{end}}
     </section>
+    <aside class="login-aside" aria-label="Invitation boundary">
+      <p class="login-aside__mark" aria-hidden="true">/</p>
+      <p class="login-aside__eyebrow">Invitation required</p>
+      <h2>Your company decides who can use its approved models.</h2>
+      <p>This link establishes your identity. Your company’s current groups determine which models become available in Alzette Connect.</p>
+      <div class="login-aside__rule"></div>
+      <span>No company, group, or model details are disclosed before authentication.</span>
+    </aside>
   </main>
 </body>
 </html>

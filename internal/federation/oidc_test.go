@@ -58,7 +58,7 @@ func TestOIDCClientUsesPKCEAndValidatesExactIdentityAndNonce(t *testing.T) {
 	defer server.Close()
 	ctx := oidc.ClientContext(context.Background(), server.Client())
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, server.Client())
-	client, err := New(ctx, Config{Issuer: server.URL, ClientID: "alzette-portal", ClientSecret: "test-secret", RedirectURL: "https://portal.example.test/login/oidc/callback", AllowInsecure: true})
+	client, err := New(ctx, Config{Issuer: server.URL, ClientID: "alzette-portal", ClientSecret: "test-secret", RedirectURL: "https://portal.example.test/login/oidc/callback", SignupURL: server.URL + "/signup/oauth/authorize", AllowInsecure: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,6 +70,10 @@ func TestOIDCClientUsesPKCEAndValidatesExactIdentityAndNonce(t *testing.T) {
 	challenge := sha256.Sum256([]byte(verifier))
 	if query.Get("state") != "state-value" || query.Get("nonce") != nonce || query.Get("code_challenge_method") != "S256" || query.Get("code_challenge") != base64.RawURLEncoding.EncodeToString(challenge[:]) {
 		t.Fatalf("authorization query=%v", query)
+	}
+	signupURL, err := url.Parse(client.SignupURL("signup-state", nonce, verifier))
+	if err != nil || signupURL.Path != "/signup/oauth/authorize" || signupURL.Query().Get("state") != "signup-state" || signupURL.Query().Get("code_challenge") != base64.RawURLEncoding.EncodeToString(challenge[:]) {
+		t.Fatalf("signup URL=%v error=%v", signupURL, err)
 	}
 	identity, err := client.Exchange(ctx, "one-use-code", verifier, nonce)
 	if err != nil {
@@ -92,6 +96,9 @@ func TestOIDCClientUsesPKCEAndValidatesExactIdentityAndNonce(t *testing.T) {
 	}
 	if accessIdentity.Issuer != server.URL || accessIdentity.Subject != "employee|42" || accessIdentity.OAuthClientID != "alzette-portal" {
 		t.Fatalf("access identity=%#v", accessIdentity)
+	}
+	if _, err := New(ctx, Config{Issuer: server.URL, ClientID: "alzette-portal", ClientSecret: "test-secret", RedirectURL: "https://portal.example.test/login/oidc/callback", SignupURL: "https://untrusted.example/signup"}); err == nil || !strings.Contains(err.Error(), "signup URL") {
+		t.Fatalf("cross-origin signup URL error=%v", err)
 	}
 }
 

@@ -451,12 +451,13 @@ func configuredWorkforceOIDC() (federation.Provider, error) {
 	config := federation.Config{
 		Issuer: os.Getenv("ALZETTE_WORKFORCE_OIDC_ISSUER"), ClientID: os.Getenv("ALZETTE_WORKFORCE_OIDC_CLIENT_ID"),
 		ClientSecret: os.Getenv("ALZETTE_WORKFORCE_OIDC_CLIENT_SECRET"), RedirectURL: os.Getenv("ALZETTE_WORKFORCE_OIDC_REDIRECT_URL"),
+		SignupURL:     os.Getenv("ALZETTE_WORKFORCE_OIDC_SIGNUP_URL"),
 		AllowInsecure: envBool("ALZETTE_ALLOW_INSECURE_WORKFORCE_OIDC"),
 	}
-	if config.Issuer == "" && config.ClientID == "" && config.ClientSecret == "" && config.RedirectURL == "" {
+	if config.Issuer == "" && config.ClientID == "" && config.ClientSecret == "" && config.RedirectURL == "" && config.SignupURL == "" {
 		return nil, nil
 	}
-	if config.Issuer == "" || config.ClientID == "" || config.ClientSecret == "" || config.RedirectURL == "" {
+	if config.Issuer == "" || config.ClientID == "" || config.ClientSecret == "" || config.RedirectURL == "" || config.SignupURL == "" {
 		return nil, errors.New("workforce OIDC configuration is incomplete")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

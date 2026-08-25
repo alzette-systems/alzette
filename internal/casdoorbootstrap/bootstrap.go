@@ -77,17 +77,22 @@ const (
 .signin-methods,
 .login-auto-signin,
 .login-forget-password,
+.login-signup-link,
 .anticon-global {
   display: none !important;
 }
-.login-signup-link {
-  display: flex !important;
-  justify-content: center !important;
-  margin: 16px 0 0 !important;
-  font-size: 14px;
+.alzette-invitation-note {
+  display: grid;
+  gap: 4px;
+  margin-top: 18px;
+  color: #4f5b64;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
 }
-.login-signup-link a {
-  color: #087c4e !important;
+.alzette-invitation-note strong {
+  color: #10151a;
   font-weight: 620;
 }
 .ant-form-item {
@@ -230,6 +235,7 @@ func configureSigninItems(application map[string]interface{}) {
 	if !ok {
 		return
 	}
+	notePresent := false
 	for _, raw := range items {
 		item, ok := raw.(map[string]interface{})
 		if !ok {
@@ -248,9 +254,20 @@ func configureSigninItems(application map[string]interface{}) {
 			item["visible"] = true
 			item["label"] = "Sign in"
 		case "Signup link":
+			item["visible"] = false
+			item["label"] = ""
+		case "Text Alzette invitation":
 			item["visible"] = true
-			item["label"] = "Create your account"
+			item["isCustom"] = true
+			item["customCss"] = `<div class="alzette-invitation-note"><strong>Access starts with an invitation.</strong><span>Open the invitation link sent by your company owner before signing in.</span></div>`
+			notePresent = true
 		}
+	}
+	if !notePresent {
+		application["signinItems"] = append(items, map[string]interface{}{
+			"name": "Text Alzette invitation", "visible": true, "isCustom": true,
+			"customCss": `<div class="alzette-invitation-note"><strong>Access starts with an invitation.</strong><span>Open the invitation link sent by your company owner before signing in.</span></div>`,
+		})
 	}
 }
 

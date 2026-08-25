@@ -56,7 +56,7 @@ func (a *App) invitationEntry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maximumFormBody)
-		if err := r.ParseForm(); err != nil || r.PostForm.Get("intent") != "continue" || len(r.PostForm) != 1 {
+		if err := r.ParseForm(); err != nil || len(r.PostForm) != 1 || (r.PostForm.Get("intent") != "create_account" && r.PostForm.Get("intent") != "sign_in") {
 			a.renderInvitationPage(w, http.StatusBadRequest, "The invitation continuation request was invalid. Reload the invitation link and try again.")
 			return
 		}
@@ -72,7 +72,11 @@ func (a *App) invitationEntry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.setActionCookie(w, oidcStateCookieName, state, now.Add(10*time.Minute), http.SameSiteLaxMode)
-		http.Redirect(w, r, a.oidc.AuthorizationURL(state, nonce, verifier), http.StatusSeeOther)
+		target := a.oidc.AuthorizationURL(state, nonce, verifier)
+		if r.PostForm.Get("intent") == "create_account" {
+			target = a.oidc.SignupURL(state, nonce, verifier)
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
 	default:
 		api.MethodNotAllowed(w, "GET, POST", "")
 	}

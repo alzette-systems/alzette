@@ -70,14 +70,21 @@ func TestRunBrandsExistingCasdoorOrganisationAndApplication(t *testing.T) {
 		t.Fatalf("custom login branding was not installed")
 	}
 	items := updatedApplication["signinItems"].([]interface{})
+	noteFound := false
 	for _, raw := range items {
 		item := raw.(map[string]interface{})
 		if item["name"] == "Username" && item["placeholder"] != "Work email" {
 			t.Fatalf("username item=%#v", item)
 		}
-		if item["name"] == "Signup link" && (item["visible"] != true || item["label"] != "Create your account") {
+		if item["name"] == "Signup link" && item["visible"] != false {
 			t.Fatalf("signup item=%#v", item)
 		}
+		if item["name"] == "Text Alzette invitation" {
+			noteFound = item["visible"] == true && strings.Contains(item["customCss"].(string), "Access starts with an invitation")
+		}
+	}
+	if !noteFound {
+		t.Fatal("invitation guidance was not installed")
 	}
 }
 

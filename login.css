@@ -36,9 +36,15 @@ a { color: inherit; }
 .login-form input { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid var(--login-line); border-radius: 3px; background: var(--login-surface); color: var(--login-ink); font-family: var(--login-sans); font-size: 15px; letter-spacing: 0; text-transform: none; }
 .login-form input:focus { border-color: var(--login-green-dark); outline: 2px solid rgba(13, 158, 99, .2); outline-offset: 1px; }
 .login-guidance { margin: 0; color: var(--login-faint); font-size: 12px; line-height: 1.5; }
-.login-error { margin: 0; padding: 10px 12px; border-left: 3px solid #9f3034; background: #fff0ef; color: #9f3034; font-size: 12px; }
+.login-error { margin: 0; padding: 10px 12px; border: 1px solid #9f3034; border-radius: 2px; background: #fff0ef; color: #9f3034; font-size: 12px; }
 .login-submit { display: inline-flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--login-dark); border-radius: 3px; background: var(--login-dark); color: #fff; font-family: var(--login-mono); font-size: 12px; font-weight: 650; }
 .login-submit:hover { background: #27343b; }
+.login-invitation-actions { display: grid; gap: 10px; margin-top: 32px; }
+.login-invitation-actions form { margin: 0; }
+.login-invitation-actions .login-submit,
+.login-invitation-actions .login-secondary { width: 100%; }
+.login-secondary { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; padding: 12px 16px; border: 1px solid var(--login-line); border-radius: 3px; background: transparent; color: var(--login-ink); font-family: var(--login-sans); font-size: 14px; font-weight: 620; }
+.login-secondary:hover { border-color: var(--login-faint); background: var(--login-surface); }
 .login-footnote { margin: 25px 0 0; color: var(--login-faint); font-family: var(--login-mono); font-size: 10px; line-height: 1.5; }
 .login-aside { display: flex; min-height: 100%; flex-direction: column; justify-content: flex-end; padding: 52px clamp(30px, 6vw, 88px); background: var(--login-dark); color: #fff; }
 .login-aside__mark { margin: 0 0 auto; color: var(--login-green); font-family: var(--login-mono); font-size: 13px; font-weight: 700; }

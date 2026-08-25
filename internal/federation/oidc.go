@@ -19,6 +19,7 @@ type Config struct {
 	ClientID      string
 	ClientSecret  string
 	RedirectURL   string
+	SignupURL     string
 	AllowInsecure bool
 }
 
@@ -33,6 +34,7 @@ type Identity struct {
 
 type Provider interface {
 	AuthorizationURL(state, nonce, verifier string) string
+	SignupURL(state, nonce, verifier string) string
 	Exchange(context.Context, string, string, string) (Identity, error)
 	Issuer() string
 }
@@ -46,6 +48,7 @@ type AccessTokenProvider interface {
 type Client struct {
 	issuer                string
 	oauth                 oauth2.Config
+	signupOAuth           oauth2.Config
 	verifier              *oidc.IDTokenVerifier
 	httpClient            *http.Client
 	introspectionEndpoint string
@@ -55,6 +58,7 @@ func New(ctx context.Context, config Config) (*Client, error) {
 	config.Issuer = strings.TrimSuffix(strings.TrimSpace(config.Issuer), "/")
 	config.ClientID = strings.TrimSpace(config.ClientID)
 	config.RedirectURL = strings.TrimSpace(config.RedirectURL)
+	config.SignupURL = strings.TrimSpace(config.SignupURL)
 	issuerURL, err := url.Parse(config.Issuer)
 	if err != nil || issuerURL.Host == "" || issuerURL.RawQuery != "" || issuerURL.Fragment != "" || (issuerURL.Scheme != "https" && !(config.AllowInsecure && issuerURL.Scheme == "http")) {
 		return nil, errors.New("OIDC issuer must be an exact HTTPS origin")
@@ -62,6 +66,10 @@ func New(ctx context.Context, config Config) (*Client, error) {
 	redirectURL, err := url.Parse(config.RedirectURL)
 	if err != nil || redirectURL.Host == "" || redirectURL.RawQuery != "" || redirectURL.Fragment != "" || (redirectURL.Scheme != "https" && !(config.AllowInsecure && redirectURL.Scheme == "http")) {
 		return nil, errors.New("OIDC redirect URL must be an exact HTTPS URL")
+	}
+	signupURL, err := url.Parse(config.SignupURL)
+	if err != nil || signupURL.Scheme != issuerURL.Scheme || signupURL.Host != issuerURL.Host || signupURL.User != nil || signupURL.RawQuery != "" || signupURL.Fragment != "" || signupURL.Path == "" {
+		return nil, errors.New("OIDC signup URL must use the configured issuer origin")
 	}
 	if config.ClientID == "" || len(config.ClientID) > 255 || len(config.ClientSecret) > 4096 {
 		return nil, errors.New("OIDC client configuration is incomplete")
@@ -94,11 +102,15 @@ func New(ctx context.Context, config Config) (*Client, error) {
 	if err != nil || introspectionURL.Scheme != issuerURL.Scheme || introspectionURL.Host != issuerURL.Host || introspectionURL.User != nil || introspectionURL.RawQuery != "" || introspectionURL.Fragment != "" {
 		return nil, errors.New("OIDC introspection endpoint must use the configured issuer origin")
 	}
+	oauthConfig := oauth2.Config{ClientID: config.ClientID, ClientSecret: config.ClientSecret, RedirectURL: config.RedirectURL, Endpoint: provider.Endpoint(), Scopes: []string{oidc.ScopeOpenID, "profile", "email"}}
+	signupConfig := oauthConfig
+	signupConfig.Endpoint.AuthURL = signupURL.String()
 	return &Client{
-		issuer:     config.Issuer,
-		oauth:      oauth2.Config{ClientID: config.ClientID, ClientSecret: config.ClientSecret, RedirectURL: config.RedirectURL, Endpoint: provider.Endpoint(), Scopes: []string{oidc.ScopeOpenID, "profile", "email"}},
-		verifier:   provider.Verifier(&oidc.Config{ClientID: config.ClientID, SupportedSigningAlgs: []string{"RS256"}}),
-		httpClient: httpClient, introspectionEndpoint: discovery.IntrospectionEndpoint,
+		issuer:      config.Issuer,
+		oauth:       oauthConfig,
+		signupOAuth: signupConfig,
+		verifier:    provider.Verifier(&oidc.Config{ClientID: config.ClientID, SupportedSigningAlgs: []string{"RS256"}}),
+		httpClient:  httpClient, introspectionEndpoint: discovery.IntrospectionEndpoint,
 	}, nil
 }
 
@@ -107,6 +119,10 @@ func (c *Client) ClientID() string { return c.oauth.ClientID }
 
 func (c *Client) AuthorizationURL(state, nonce, verifier string) string {
 	return c.oauth.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier), oauth2.SetAuthURLParam("nonce", nonce))
+}
+
+func (c *Client) SignupURL(state, nonce, verifier string) string {
+	return c.signupOAuth.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier), oauth2.SetAuthURLParam("nonce", nonce))
 }
 
 func (c *Client) ValidateAccessToken(ctx context.Context, raw string) (Identity, error) {

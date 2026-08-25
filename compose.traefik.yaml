@@ -38,6 +38,7 @@ services:
       ALZETTE_PORTAL_COOKIE_SECURE: "true"
       ALZETTE_WORKFORCE_OIDC_ISSUER: https://${ALZETTE_AUTH_HOST:-auth.alzette.systems}
       ALZETTE_WORKFORCE_OIDC_REDIRECT_URL: https://${ALZETTE_CONTROL_HOST:-app.alzette.systems}/login/oidc/callback
+      ALZETTE_WORKFORCE_OIDC_SIGNUP_URL: https://${ALZETTE_AUTH_HOST:-auth.alzette.systems}/signup/oauth/authorize
       ALZETTE_WORKFORCE_AGENT_OIDC_REDIRECT_URL: http://127.0.0.1:43127/callback
       ALZETTE_ALLOW_INSECURE_WORKFORCE_OIDC: "false"
     networks:

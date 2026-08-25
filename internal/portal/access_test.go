@@ -155,6 +155,9 @@ type oidcStub struct {
 func (s *oidcStub) AuthorizationURL(state, nonce, verifier string) string {
 	return "https://identity.example.test/authorize?state=" + url.QueryEscape(state) + "&nonce=" + url.QueryEscape(nonce) + "&challenge=" + url.QueryEscape(verifier)
 }
+func (s *oidcStub) SignupURL(state, nonce, verifier string) string {
+	return "https://identity.example.test/signup/oauth/authorize?state=" + url.QueryEscape(state) + "&nonce=" + url.QueryEscape(nonce) + "&challenge=" + url.QueryEscape(verifier)
+}
 func (s *oidcStub) Exchange(_ context.Context, code, verifier, nonce string) (federation.Identity, error) {
 	if code != "test-code" || verifier != "expected-verifier" || nonce != "expected-nonce" {
 		return federation.Identity{}, errors.New("unexpected exchange")
@@ -363,8 +366,13 @@ func TestInvitationGETIsScannerSafeAndOIDCCallbackAcceptsExactIdentity(t *testin
 			t.Fatalf("clean invitation page disclosed %q", forbidden)
 		}
 	}
+	for _, required := range []string{"Join your company on Alzette", "Create account", "I already have an account", "No company, group, or model details are disclosed before authentication"} {
+		if !strings.Contains(clean.Body.String(), required) {
+			t.Fatalf("clean invitation page missing %q", required)
+		}
+	}
 
-	continueRequest := httptest.NewRequest(http.MethodPost, "/accept-invite", strings.NewReader("intent=continue"))
+	continueRequest := httptest.NewRequest(http.MethodPost, "/accept-invite", strings.NewReader("intent=sign_in"))
 	continueRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	continueRequest.AddCookie(setupCookie)
 	continuation := httptest.NewRecorder()
@@ -396,6 +404,24 @@ func TestInvitationGETIsScannerSafeAndOIDCCallbackAcceptsExactIdentity(t *testin
 	}
 	if !foundSession || !foundCSRF {
 		t.Fatalf("accepted invitation cookies=%#v", cookies)
+	}
+}
+
+func TestInvitationCreateAccountUsesBoundOIDCSignup(t *testing.T) {
+	store := &workforceStub{access: ownerAccessFixture(), groups: map[string]workforce.Group{}}
+	app := newAccessTestAppWithOIDC(t, store, &oidcStub{})
+	entry := httptest.NewRecorder()
+	app.ServeHTTP(entry, httptest.NewRequest(http.MethodGet, "/accept-invite?token=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG", nil))
+	if entry.Code != http.StatusSeeOther || len(entry.Result().Cookies()) == 0 {
+		t.Fatalf("entry status=%d cookies=%#v", entry.Code, entry.Result().Cookies())
+	}
+	request := httptest.NewRequest(http.MethodPost, "/accept-invite", strings.NewReader("intent=create_account"))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.AddCookie(entry.Result().Cookies()[0])
+	response := httptest.NewRecorder()
+	app.ServeHTTP(response, request)
+	if response.Code != http.StatusSeeOther || !strings.HasPrefix(response.Header().Get("Location"), "https://identity.example.test/signup/oauth/authorize?") || !store.oidcCreated {
+		t.Fatalf("signup status=%d location=%q created=%t", response.Code, response.Header().Get("Location"), store.oidcCreated)
 	}
 }
 
