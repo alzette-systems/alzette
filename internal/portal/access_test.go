@@ -139,7 +139,7 @@ func newAccessTestAppWithOIDC(t *testing.T, workforceStore *workforceStub, provi
 	app, err := New(Config{
 		Store: portalStore, PortalStore: portalStore, StaticDirectory: directory, SessionTTL: time.Hour,
 		Clock: func() time.Time { return now }, Workforce: workforce.New(workforceStore), OIDC: provider,
-		PublicGatewayURL: "http://127.0.0.1:8080", PublicControlURL: "http://portal.example.test", ConnectReleaseVersion: "0.3.1", AllowInsecurePublicGateway: true,
+		PublicGatewayURL: "http://127.0.0.1:8080", PublicControlURL: "http://portal.example.test", ConnectReleaseVersion: "0.3.2", AllowInsecurePublicGateway: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -184,7 +184,7 @@ func TestAccessWorkspaceIsServerRenderedEscapedAndKeepsApplicationAccess(t *test
 	if response.Code != http.StatusOK || !strings.Contains(response.Header().Get("Content-Type"), "text/html") {
 		t.Fatalf("status=%d type=%q", response.Code, response.Header().Get("Content-Type"))
 	}
-	for _, required := range []string{"People and model access", "Company owner", "Erin Employee", "alzette-chat", "/app/access/groups", "/app/access?view=applications", `<details class="server-mobile-nav">`, `/access.js`, `Open ChatGPT with your company models.`, `signed release 0.3.1`, `Alzette-Connect-0.3.1-macOS-arm64.zip`, `Developer ID signed, Apple-notarized, and stapled`} {
+	for _, required := range []string{"People and model access", "Company owner", "Erin Employee", "alzette-chat", "/app/access/groups", "/app/access?view=applications", `<details class="server-mobile-nav">`, `/access.js`, `Open ChatGPT with your company models.`, `signed release 0.3.2`, `Alzette-Connect-0.3.2-macOS-arm64.zip`, `Developer ID signed, Apple-notarized, and stapled`} {
 		if !strings.Contains(body, required) {
 			t.Fatalf("access page missing %q", required)
 		}
