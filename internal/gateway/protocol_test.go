@@ -122,6 +122,71 @@ func TestResponsesNamespaceToolHistoryMapsBackToProviderAlias(t *testing.T) {
 	}
 }
 
+func TestResponsesCurrentChatGPTFieldsAreParsedByBifrostAndSanitized(t *testing.T) {
+	var capturedRaw map[string]json.RawMessage
+	var captured ChatRequest
+	fixture := newFixture(t, func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read upstream request: %v", err)
+			return
+		}
+		if err := json.Unmarshal(body, &capturedRaw); err != nil {
+			t.Errorf("decode raw upstream request: %v", err)
+			return
+		}
+		if err := json.Unmarshal(body, &captured); err != nil {
+			t.Errorf("decode upstream request: %v", err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, successfulResponse)
+	}, nil)
+
+	body := `{
+		"model":"safe-chat",
+		"instructions":"Answer through the company model.",
+		"input":[
+			{"type":"additional_tools","role":"developer","tools":[{"type":"function","name":"wait","description":"Wait for work","parameters":{"type":"object","properties":{"cell_id":{"type":"string"}},"required":["cell_id"]}}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"Which model are you?"}]}
+		],
+		"tools":[{"type":"namespace","name":"workspace","tools":[{"type":"function","name":"lookup","description":"Look something up","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}]}],
+		"tool_choice":"auto",
+		"parallel_tool_calls":true,
+		"max_output_tokens":256,
+		"prompt_cache_key":"chatgpt-desktop-conversation-42",
+		"prompt_cache_options":{"mode":"implicit","ttl":"30m"},
+		"prompt_cache_retention":"24h",
+		"safety_identifier":"employee-stable-identifier",
+		"service_tier":"auto",
+		"metadata":{"client":"chatgpt-desktop"},
+		"user":"legacy-client-user",
+		"text":{"format":{"type":"text"},"verbosity":"medium"}
+	}`
+	response := protocolRequest(t, fixture, "/v1/responses", body, "Authorization", "Bearer "+fixture.key)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if len(captured.Messages) != 2 || captured.Messages[0].Role != "system" || captured.Messages[1].Role != "user" {
+		t.Fatalf("Bifrost normalized messages = %#v", captured.Messages)
+	}
+	if len(captured.Tools) != 2 || captured.maxOutputTokens() == nil || *captured.maxOutputTokens() != 256 {
+		t.Fatalf("Bifrost normalized request = %#v", captured)
+	}
+	for _, field := range []string{"prompt_cache_key", "prompt_cache_options", "prompt_cache_retention", "safety_identifier", "service_tier", "metadata", "user", "text", "verbosity"} {
+		if _, leaked := capturedRaw[field]; leaked {
+			t.Fatalf("Responses client field %q leaked past Alzette normalization: %s", field, capturedRaw[field])
+		}
+	}
+}
+
+func TestResponsesPromptTemplateRemainsFailClosed(t *testing.T) {
+	_, err := decodeResponsesRequest([]byte(`{"model":"safe-chat","input":"hello","prompt":{"id":"pmpt_unsafe"}}`))
+	if err == nil || !strings.Contains(err.Error(), `field "prompt"`) {
+		t.Fatalf("prompt template policy error = %v", err)
+	}
+}
+
 func protocolRequest(t *testing.T, fixture *fixture, path, body, header, credential string) *httptest.ResponseRecorder {
 	t.Helper()
 	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))

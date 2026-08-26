@@ -1,12 +1,13 @@
 package gateway
 
-// This file implements the bounded OpenAI Responses <-> Chat Completions
-// conversion used by Alzette. It directly uses Maxim Bifrost's Apache-2.0
-// Responses tool schemas and compatibility rules while keeping Alzette's
-// request validation, routing, retry, and accounting invariants authoritative.
+// This file implements the OpenAI Responses <-> Chat Completions adapter used
+// by Alzette. Bifrost owns the evolving Responses wire schema and the protocol
+// mux. Alzette applies its policy after that normalization and remains
+// authoritative for credentials, model routing, retries, and accounting.
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -16,225 +17,151 @@ import (
 
 	"alzette/internal/platform"
 
+	bifrostopenai "github.com/maximhq/bifrost/core/providers/openai"
 	"github.com/maximhq/bifrost/core/schemas"
 )
-
-type responsesRequest struct {
-	Model              string                  `json:"model"`
-	Input              json.RawMessage         `json:"input"`
-	Instructions       json.RawMessage         `json:"instructions,omitempty"`
-	Stream             *bool                   `json:"stream,omitempty"`
-	MaxOutputTokens    *int                    `json:"max_output_tokens,omitempty"`
-	Temperature        *float64                `json:"temperature,omitempty"`
-	TopP               *float64                `json:"top_p,omitempty"`
-	Tools              []schemas.ResponsesTool `json:"tools,omitempty"`
-	ToolChoice         json.RawMessage         `json:"tool_choice,omitempty"`
-	ParallelToolCalls  *bool                   `json:"parallel_tool_calls,omitempty"`
-	Reasoning          *responsesReasoning     `json:"reasoning,omitempty"`
-	Store              *bool                   `json:"store,omitempty"`
-	PreviousResponseID string                  `json:"previous_response_id,omitempty"`
-	Include            []string                `json:"include,omitempty"`
-	Metadata           json.RawMessage         `json:"metadata,omitempty"`
-	Text               json.RawMessage         `json:"text,omitempty"`
-	Truncation         string                  `json:"truncation,omitempty"`
-	User               string                  `json:"user,omitempty"`
-}
-
-type responsesReasoning struct {
-	Effort  string `json:"effort,omitempty"`
-	Summary string `json:"summary,omitempty"`
-}
-
-type responsesInputItem struct {
-	Type      string                  `json:"type,omitempty"`
-	Role      string                  `json:"role,omitempty"`
-	Content   json.RawMessage         `json:"content,omitempty"`
-	ID        string                  `json:"id,omitempty"`
-	Status    string                  `json:"status,omitempty"`
-	Phase     string                  `json:"phase,omitempty"`
-	CallID    string                  `json:"call_id,omitempty"`
-	Name      string                  `json:"name,omitempty"`
-	Namespace string                  `json:"namespace,omitempty"`
-	Arguments string                  `json:"arguments,omitempty"`
-	Output    json.RawMessage         `json:"output,omitempty"`
-	Tools     []schemas.ResponsesTool `json:"tools,omitempty"`
-}
 
 type responsesToolIdentity struct {
 	Namespace string
 	Name      string
 }
 
-type responsesContentPart struct {
-	Type        string          `json:"type"`
-	Text        string          `json:"text,omitempty"`
-	Annotations json.RawMessage `json:"annotations,omitempty"`
-}
-
 func decodeResponsesRequest(data []byte) (ChatRequest, error) {
-	var input responsesRequest
-	if err := decodeStrict(data, &input); err != nil {
-		if strings.Contains(err.Error(), "json: unknown field") {
-			return ChatRequest{}, unsupportedProtocolField("Responses", strings.TrimPrefix(strings.TrimSpace(err.Error()), "json: unknown field "))
-		}
+	var envelope map[string]json.RawMessage
+	if err := decodeOneJSON(data, &envelope); err != nil || envelope == nil {
 		return ChatRequest{}, invalidProtocolRequest("Responses", "is not valid JSON")
 	}
-	if input.PreviousResponseID != "" {
-		return ChatRequest{}, unsupportedProtocolField("Responses", "previous_response_id")
-	}
-	if input.Store != nil && *input.Store {
-		return ChatRequest{}, unsupportedProtocolField("Responses", "store=true")
-	}
-	if len(input.Include) != 0 {
-		return ChatRequest{}, unsupportedProtocolField("Responses", "include")
-	}
-	if len(bytes.TrimSpace(input.Metadata)) != 0 && !bytes.Equal(bytes.TrimSpace(input.Metadata), []byte("null")) && !bytes.Equal(bytes.TrimSpace(input.Metadata), []byte("{}")) {
-		return ChatRequest{}, unsupportedProtocolField("Responses", "metadata")
-	}
-	if input.Text != nil && !responsesTextIsDefault(input.Text) {
-		return ChatRequest{}, unsupportedProtocolField("Responses", "text.format")
-	}
-	if input.Truncation != "" && input.Truncation != "disabled" {
-		return ChatRequest{}, unsupportedProtocolField("Responses", "truncation")
-	}
-	if input.User != "" {
-		return ChatRequest{}, unsupportedProtocolField("Responses", "user")
+	if raw, ok := envelope["input"]; !ok || len(bytes.TrimSpace(raw)) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return ChatRequest{}, invalidProtocolRequest("Responses", "requires input")
 	}
 
-	messages, additionalTools, err := responsesInputToMessages(input.Instructions, input.Input)
+	var wire bifrostopenai.OpenAIResponsesRequest
+	if err := decodeOneJSON(data, &wire); err != nil {
+		return ChatRequest{}, invalidProtocolRequest("Responses", "is not a valid Responses request")
+	}
+	if err := validateResponsesPolicy(envelope, &wire); err != nil {
+		return ChatRequest{}, err
+	}
+
+	ctx := schemas.NewBifrostContext(context.Background(), time.Time{})
+	request := wire.ToBifrostResponsesRequest(ctx)
+	if request == nil || request.Params == nil {
+		return ChatRequest{}, invalidProtocolRequest("Responses", "could not be normalized")
+	}
+
+	additionalTools, filteredInput, err := hoistResponsesAdditionalTools(request.Input)
 	if err != nil {
 		return ChatRequest{}, err
 	}
-	allTools := append(append(make([]schemas.ResponsesTool, 0, len(input.Tools)+len(additionalTools)), input.Tools...), additionalTools...)
+	request.Input = filteredInput
+	allTools := append(append(make([]schemas.ResponsesTool, 0, len(request.Params.Tools)+len(additionalTools)), request.Params.Tools...), additionalTools...)
 	tools, aliases, identities, err := responsesToolsToChat(allTools)
 	if err != nil {
 		return ChatRequest{}, err
 	}
-	for messageIndex := range messages {
-		for callIndex := range messages[messageIndex].ToolCalls {
-			call := &messages[messageIndex].ToolCalls[callIndex]
-			if call.Namespace == "" {
-				continue
-			}
-			alias, ok := identities[responsesIdentityKey(call.Namespace, call.Function.Name)]
-			if !ok {
-				return ChatRequest{}, invalidProtocolRequest("Responses", "function_call references an undeclared namespace tool")
-			}
-			call.Function.Name = alias
-		}
-	}
-	toolChoice, err := responsesToolChoice(input.ToolChoice)
-	if err != nil {
+	if err := rewriteResponsesNamespaceHistory(request.Input, identities); err != nil {
 		return ChatRequest{}, err
 	}
-	reasoningEffort := ""
-	if input.Reasoning != nil {
-		reasoningEffort = input.Reasoning.Effort
-		if input.Reasoning.Summary != "" {
-			return ChatRequest{}, unsupportedProtocolField("Responses", "reasoning.summary")
-		}
+
+	chat := request.ToChatRequest()
+	chat.Provider = schemas.DeepSeek
+	chat.Model = wire.Model
+	chatWire := bifrostopenai.ToOpenAIChatRequest(ctx, chat)
+	if chatWire == nil {
+		return ChatRequest{}, invalidProtocolRequest("Responses", "could not be mapped to the configured model API")
 	}
-	request := ChatRequest{
-		Model: input.Model, Messages: messages, Stream: input.Stream,
-		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxOutputTokens,
-		ReasoningEffort: reasoningEffort, ParallelToolCalls: input.ParallelToolCalls, Tools: tools, ToolChoice: toolChoice,
-		ResponsesToolAliases: aliases,
+	chatWire.Stream = wire.Stream
+	encoded, err := json.Marshal(chatWire)
+	if err != nil {
+		return ChatRequest{}, invalidProtocolRequest("Responses", "could not be normalized")
 	}
-	if request.streaming() {
+	var normalized ChatRequest
+	if err := json.Unmarshal(encoded, &normalized); err != nil {
+		return ChatRequest{}, invalidProtocolRequest("Responses", "could not be normalized")
+	}
+	// Namespace tools are a Responses-only construct. Bifrost deliberately
+	// drops them during the generic Chat mux, so Alzette supplies the flattened
+	// functions parsed from Bifrost's typed tool schema and remembers how to
+	// restore their public identities in the response.
+	normalized.Model = wire.Model
+	normalized.Stream = wire.Stream
+	normalized.Tools = tools
+	normalized.ResponsesToolAliases = aliases
+	if normalized.streaming() {
 		include := true
-		request.StreamOptions = &StreamOptions{IncludeUsage: &include}
+		normalized.StreamOptions = &StreamOptions{IncludeUsage: &include}
 	}
-	return request, nil
+	return normalized, nil
 }
 
-func responsesTextIsDefault(raw json.RawMessage) bool {
-	var value struct {
-		Format json.RawMessage `json:"format,omitempty"`
+func validateResponsesPolicy(envelope map[string]json.RawMessage, input *bifrostopenai.OpenAIResponsesRequest) error {
+	if input.PreviousResponseID != nil && *input.PreviousResponseID != "" {
+		return unsupportedProtocolField("Responses", "previous_response_id")
 	}
-	if err := decodeStrict(raw, &value); err != nil {
-		return false
+	if input.Store != nil && *input.Store {
+		return unsupportedProtocolField("Responses", "store=true")
 	}
-	if len(value.Format) == 0 || bytes.Equal(bytes.TrimSpace(value.Format), []byte("null")) {
-		return true
+	if len(input.Include) != 0 {
+		return unsupportedProtocolField("Responses", "include")
 	}
-	var format struct {
-		Type string `json:"type"`
+	if input.Background != nil && *input.Background {
+		return unsupportedProtocolField("Responses", "background=true")
 	}
-	return decodeStrict(value.Format, &format) == nil && (format.Type == "" || format.Type == "text")
+	if input.Conversation != nil && *input.Conversation != "" {
+		return unsupportedProtocolField("Responses", "conversation")
+	}
+	if raw, ok := envelope["prompt"]; ok && len(bytes.TrimSpace(raw)) != 0 && !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return unsupportedProtocolField("Responses", "prompt")
+	}
+	if input.Text != nil && input.Text.Format != nil && input.Text.Format.Type != "" && input.Text.Format.Type != "text" {
+		return unsupportedProtocolField("Responses", "text.format")
+	}
+	if input.Truncation != nil && *input.Truncation != "" && *input.Truncation != "disabled" {
+		return unsupportedProtocolField("Responses", "truncation")
+	}
+	if raw := bytes.TrimSpace(input.ContextManagement); len(raw) != 0 && !bytes.Equal(raw, []byte("null")) && !bytes.Equal(raw, []byte("{}")) {
+		return unsupportedProtocolField("Responses", "context_management")
+	}
+	return nil
 }
 
-func responsesInputToMessages(instructions, raw json.RawMessage) ([]Message, []schemas.ResponsesTool, error) {
-	messages := make([]Message, 0)
-	additionalTools := make([]schemas.ResponsesTool, 0)
-	if len(bytes.TrimSpace(instructions)) != 0 && !bytes.Equal(bytes.TrimSpace(instructions), []byte("null")) {
-		text, err := responsesTextContent(instructions, true)
-		if err != nil || text == "" {
-			return nil, nil, invalidProtocolRequest("Responses", "instructions must contain text")
+func hoistResponsesAdditionalTools(input []schemas.ResponsesMessage) ([]schemas.ResponsesTool, []schemas.ResponsesMessage, error) {
+	tools := make([]schemas.ResponsesTool, 0)
+	filtered := make([]schemas.ResponsesMessage, 0, len(input))
+	for _, message := range input {
+		if message.Type == nil || *message.Type != schemas.ResponsesMessageTypeAdditionalTools {
+			filtered = append(filtered, message)
+			continue
 		}
-		messages = append(messages, Message{Role: "system", Content: rawString(text)})
-	}
-	if len(bytes.TrimSpace(raw)) == 0 {
-		return nil, nil, invalidProtocolRequest("Responses", "requires input")
-	}
-	var text string
-	if err := json.Unmarshal(raw, &text); err == nil {
-		if text == "" {
-			return nil, nil, invalidProtocolRequest("Responses", "input text must not be empty")
+		if len(message.AdditionalTools) == 0 {
+			continue
 		}
-		return append(messages, Message{Role: "user", Content: rawString(text)}), nil, nil
-	}
-	var items []responsesInputItem
-	if err := decodeStrict(raw, &items); err != nil || len(items) == 0 || len(items) > maxMessages*2 {
-		return nil, nil, invalidProtocolRequest("Responses", "input must be text or a supported item array")
-	}
-	for _, item := range items {
-		switch item.Type {
-		case "", "message":
-			role := item.Role
-			if role == "developer" {
-				role = "system"
-			}
-			if role != "system" && role != "user" && role != "assistant" {
-				return nil, nil, invalidProtocolRequest("Responses", "message role is unsupported")
-			}
-			content, err := responsesMessageContent(item.Content)
-			if err != nil {
-				return nil, nil, err
-			}
-			messages = append(messages, Message{Role: role, Content: content})
-		case "function_call":
-			if !validToolCallID(item.CallID) || !validToolName(item.Name) || !validJSONObjectString(item.Arguments) {
-				return nil, nil, invalidProtocolRequest("Responses", "function_call is invalid")
-			}
-			call := ToolCall{ID: item.CallID, Type: "function", Function: ToolFunction{Name: item.Name, Arguments: item.Arguments}, Namespace: item.Namespace}
-			if len(messages) != 0 && messages[len(messages)-1].Role == "assistant" && messages[len(messages)-1].ToolCallID == "" {
-				last := &messages[len(messages)-1]
-				last.ToolCalls = append(last.ToolCalls, call)
-				if len(last.Content) == 0 {
-					last.Content = rawNull()
-				}
-			} else {
-				messages = append(messages, Message{Role: "assistant", Content: rawNull(), ToolCalls: []ToolCall{call}})
-			}
-		case "function_call_output":
-			if !validToolCallID(item.CallID) {
-				return nil, nil, invalidProtocolRequest("Responses", "function_call_output call_id is invalid")
-			}
-			output, err := responsesTextContent(item.Output, false)
-			if err != nil || output == "" {
-				return nil, nil, invalidProtocolRequest("Responses", "function_call_output must contain text")
-			}
-			messages = append(messages, Message{Role: "tool", Content: rawString(output), ToolCallID: item.CallID})
-		case "additional_tools":
-			if item.Role != "" && item.Role != "developer" {
-				return nil, nil, invalidProtocolRequest("Responses", "additional_tools role is unsupported")
-			}
-			additionalTools = append(additionalTools, item.Tools...)
-		default:
-			return nil, nil, unsupportedProtocolField("Responses", "input."+item.Type)
+		var declared []schemas.ResponsesTool
+		if err := json.Unmarshal(message.AdditionalTools, &declared); err != nil {
+			return nil, nil, invalidProtocolRequest("Responses", "additional_tools contains invalid tools")
 		}
+		tools = append(tools, declared...)
 	}
-	return messages, additionalTools, nil
+	return tools, filtered, nil
+}
+
+func rewriteResponsesNamespaceHistory(input []schemas.ResponsesMessage, identities map[string]string) error {
+	for index := range input {
+		message := &input[index]
+		if message.Type == nil || *message.Type != schemas.ResponsesMessageTypeFunctionCall || message.ResponsesToolMessage == nil || message.Namespace == nil || *message.Namespace == "" {
+			continue
+		}
+		if message.Name == nil || *message.Name == "" {
+			return invalidProtocolRequest("Responses", "namespace function_call is missing a name")
+		}
+		alias, ok := identities[responsesIdentityKey(*message.Namespace, *message.Name)]
+		if !ok {
+			return invalidProtocolRequest("Responses", "function_call references an undeclared namespace tool")
+		}
+		message.Name = schemas.Ptr(alias)
+		message.Namespace = nil
+	}
+	return nil
 }
 
 func responsesToolsToChat(values []schemas.ResponsesTool) ([]Tool, map[string]responsesToolIdentity, map[string]string, error) {
@@ -330,28 +257,9 @@ func responsesFunctionCall(name string, aliases map[string]responsesToolIdentity
 	return result
 }
 
-func responsesMessageContent(raw json.RawMessage) (json.RawMessage, error) {
-	var text string
-	if err := json.Unmarshal(raw, &text); err == nil {
-		if text == "" {
-			return nil, invalidProtocolRequest("Responses", "message content must not be empty")
-		}
-		return rawString(text), nil
-	}
-	var parts []responsesContentPart
-	if err := decodeStrict(raw, &parts); err != nil || len(parts) == 0 || len(parts) > maxMessageParts {
-		return nil, invalidProtocolRequest("Responses", "message content is unsupported")
-	}
-	texts := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if (part.Type != "input_text" && part.Type != "output_text" && part.Type != "text") || part.Text == "" {
-			return nil, unsupportedProtocolField("Responses", "input.content."+part.Type)
-		}
-		texts = append(texts, part.Text)
-	}
-	return joinTextParts(texts), nil
-}
-
+// responsesTextContent is shared by the Anthropic tool-result adapter. Bifrost
+// owns Responses input decoding; this helper only normalizes the small textual
+// result union accepted by the internal Chat representation.
 func responsesTextContent(raw json.RawMessage, allowPlain bool) (string, error) {
 	var text string
 	if err := json.Unmarshal(raw, &text); err == nil {
@@ -360,7 +268,10 @@ func responsesTextContent(raw json.RawMessage, allowPlain bool) (string, error) 
 		}
 		return text, nil
 	}
-	var parts []responsesContentPart
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text,omitempty"`
+	}
 	if err := decodeStrict(raw, &parts); err != nil || len(parts) == 0 || len(parts) > maxMessageParts {
 		return "", errors.New("unsupported text content")
 	}
@@ -372,30 +283,6 @@ func responsesTextContent(raw json.RawMessage, allowPlain bool) (string, error) 
 		texts = append(texts, part.Text)
 	}
 	return strings.Join(texts, "\n"), nil
-}
-
-func responsesToolChoice(raw json.RawMessage) (json.RawMessage, error) {
-	if len(bytes.TrimSpace(raw)) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		return nil, nil
-	}
-	var choice string
-	if json.Unmarshal(raw, &choice) == nil {
-		if choice == "auto" || choice == "none" || choice == "required" {
-			return rawString(choice), nil
-		}
-		return nil, invalidProtocolRequest("Responses", "tool_choice is unsupported")
-	}
-	var named struct {
-		Type string `json:"type"`
-		Name string `json:"name"`
-	}
-	if decodeStrict(raw, &named) != nil || named.Type != "function" || !validToolName(named.Name) {
-		return nil, invalidProtocolRequest("Responses", "tool_choice is unsupported")
-	}
-	value := namedToolChoice{Type: "function"}
-	value.Function.Name = named.Name
-	data, _ := json.Marshal(value)
-	return data, nil
 }
 
 type chatCompletionResponse struct {
