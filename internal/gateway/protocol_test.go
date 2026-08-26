@@ -154,6 +154,7 @@ func TestResponsesCurrentChatGPTFieldsAreParsedByBifrostAndSanitized(t *testing.
 		"tool_choice":"auto",
 		"parallel_tool_calls":true,
 		"max_output_tokens":256,
+		"include":["reasoning.encrypted_content"],
 		"prompt_cache_key":"chatgpt-desktop-conversation-42",
 		"prompt_cache_options":{"mode":"implicit","ttl":"30m"},
 		"prompt_cache_retention":"24h",
@@ -173,7 +174,7 @@ func TestResponsesCurrentChatGPTFieldsAreParsedByBifrostAndSanitized(t *testing.
 	if len(captured.Tools) != 2 || captured.maxOutputTokens() == nil || *captured.maxOutputTokens() != 256 {
 		t.Fatalf("Bifrost normalized request = %#v", captured)
 	}
-	for _, field := range []string{"prompt_cache_key", "prompt_cache_options", "prompt_cache_retention", "safety_identifier", "service_tier", "metadata", "user", "text", "verbosity"} {
+	for _, field := range []string{"include", "prompt_cache_key", "prompt_cache_options", "prompt_cache_retention", "safety_identifier", "service_tier", "metadata", "user", "text", "verbosity"} {
 		if _, leaked := capturedRaw[field]; leaked {
 			t.Fatalf("Responses client field %q leaked past Alzette normalization: %s", field, capturedRaw[field])
 		}

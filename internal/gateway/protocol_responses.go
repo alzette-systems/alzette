@@ -95,14 +95,17 @@ func decodeResponsesRequest(data []byte) (ChatRequest, error) {
 }
 
 func validateResponsesPolicy(envelope map[string]json.RawMessage, input *bifrostopenai.OpenAIResponsesRequest) error {
+	// Bifrost owns ordinary Responses wire compatibility. Keep this policy
+	// boundary limited to features that require server-side response state or
+	// semantics the stateless Responses -> Chat mux cannot truthfully provide.
+	// Optional representation hints such as include are deliberately accepted:
+	// Bifrost normalizes the request and a Chat-compatible target may omit data
+	// it cannot produce (for example reasoning.encrypted_content).
 	if input.PreviousResponseID != nil && *input.PreviousResponseID != "" {
 		return unsupportedProtocolField("Responses", "previous_response_id")
 	}
 	if input.Store != nil && *input.Store {
 		return unsupportedProtocolField("Responses", "store=true")
-	}
-	if len(input.Include) != 0 {
-		return unsupportedProtocolField("Responses", "include")
 	}
 	if input.Background != nil && *input.Background {
 		return unsupportedProtocolField("Responses", "background=true")
