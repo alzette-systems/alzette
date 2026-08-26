@@ -172,12 +172,21 @@ func (s *Store) MintAgentCredential(ctx context.Context, input agentauth.StoreMi
 	aliasesJSON, _ := json.Marshal(input.ModelAliases)
 	grantID := input.GrantID
 	var existingGrant string
-	err = tx.QueryRowContext(ctx, `SELECT id FROM human_agent_grants WHERE federated_identity_id=$1 AND oauth_client_id=$2 AND client_instance_digest=$3 AND membership_id=$4 FOR UPDATE`,
-		record.IdentityID, input.Identity.OAuthClientID, input.ClientInstanceDigest[:], input.MembershipID).Scan(&existingGrant)
+	var revokedAt sql.NullTime
+	var revocationReason sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT id,revoked_at,revocation_reason FROM human_agent_grants WHERE federated_identity_id=$1 AND oauth_client_id=$2 AND client_instance_digest=$3 AND membership_id=$4 FOR UPDATE`,
+		record.IdentityID, input.Identity.OAuthClientID, input.ClientInstanceDigest[:], input.MembershipID).Scan(&existingGrant, &revokedAt, &revocationReason)
 	if err == nil {
+		// A Connect launch is an explicit, freshly OAuth-authenticated act. It may
+		// renew the same client binding after that client deliberately disconnected
+		// or after its bounded grant expired. Policy/offboarding revocations remain
+		// terminal: loadAgentContextTx and the reason check both fail closed.
+		if revokedAt.Valid && (!revocationReason.Valid || revocationReason.String != "client_logout") {
+			return agentauth.MintResult{}, platform.ErrForbidden
+		}
 		grantID = existingGrant
-		result, err := tx.ExecContext(ctx, `UPDATE human_agent_grants SET permitted_model_aliases=$2,authenticated_at=$3,absolute_expires_at=$4,last_used_at=$3
-			WHERE id=$1 AND revoked_at IS NULL AND absolute_expires_at>$3`, grantID, aliasesJSON, input.Now, input.GrantExpiresAt)
+		result, err := tx.ExecContext(ctx, `UPDATE human_agent_grants SET permitted_model_aliases=$2,authenticated_at=$3,absolute_expires_at=$4,last_used_at=$3,revoked_at=NULL,revocation_reason=NULL
+			WHERE id=$1 AND (revoked_at IS NULL OR revocation_reason='client_logout')`, grantID, aliasesJSON, input.Now, input.GrantExpiresAt)
 		if err != nil {
 			return agentauth.MintResult{}, err
 		}

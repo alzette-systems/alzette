@@ -207,6 +207,19 @@ func TestWorkforceOwnerGroupPolicyAndTenantIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := agentService.Revoke(ctx, agentIdentity, acceptedSession.Current.ID, clientInstance); err != nil {
+		t.Fatalf("disconnect grant: %v", err)
+	}
+	if _, err := fixture.store.AuthenticateHuman(ctx, sha256.Sum256([]byte(minted.AccessToken))); !errors.Is(err, platform.ErrUnauthenticated) {
+		t.Fatalf("disconnected token remained active: %v", err)
+	}
+	minted, err = agentService.Mint(ctx, agentIdentity, agentauth.MintInput{ClientInstanceID: clientInstance, MembershipID: acceptedSession.Current.ID, ModelAliases: []string{"safe-chat"}}, "agm_"+base64.RawURLEncoding.EncodeToString([]byte("idempotency-key-relaunch")))
+	if err != nil {
+		t.Fatalf("explicit relaunch after client disconnect: %v", err)
+	}
+	if _, err := fixture.store.AuthenticateHuman(ctx, sha256.Sum256([]byte(minted.AccessToken))); err != nil {
+		t.Fatalf("relaunched human credential: %v", err)
+	}
 	if _, err := service.AcceptInvitation(ctx, transaction.ActionSessionID, workforce.FederatedIdentity{Issuer: "https://identity.example.test", Subject: "employee|subject-1", Email: "invited.employee@example.test"}, sha256.Sum256([]byte("replay-session")), now.Add(12*time.Hour), now); !errors.Is(err, platform.ErrUnauthenticated) {
 		t.Fatalf("invitation replay error=%v", err)
 	}
