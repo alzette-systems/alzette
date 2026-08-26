@@ -95,6 +95,33 @@ func TestResponsesNamespaceToolStreamingRestoresIdentity(t *testing.T) {
 	}
 }
 
+func TestResponsesNamespaceToolHistoryMapsBackToProviderAlias(t *testing.T) {
+	request, err := decodeResponsesRequest([]byte(`{
+		"model":"safe-chat",
+		"tools":[{"type":"namespace","name":"repo_tools","tools":[{"type":"function","name":"open_file","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}]}],
+		"input":[
+			{"type":"function_call","id":"fc_1","status":"completed","call_id":"call_1","namespace":"repo_tools","name":"open_file","arguments":"{\"path\":\"README.md\"}"},
+			{"type":"function_call_output","status":"completed","call_id":"call_1","output":"contents"},
+			{"type":"message","id":"msg_1","status":"completed","phase":"final_answer","role":"assistant","content":[{"type":"output_text","text":"Done","annotations":[]}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"Continue"}]}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("decode replayed namespace history: %v", err)
+	}
+	if len(request.Messages) != 4 || len(request.Messages[0].ToolCalls) != 1 {
+		t.Fatalf("translated replay messages = %#v", request.Messages)
+	}
+	alias := request.Messages[0].ToolCalls[0].Function.Name
+	identity, ok := request.ResponsesToolAliases[alias]
+	if !ok || identity.Namespace != "repo_tools" || identity.Name != "open_file" {
+		t.Fatalf("namespace replay alias %q = %#v", alias, identity)
+	}
+	if request.Messages[1].Role != "tool" || request.Messages[2].Role != "assistant" || request.Messages[3].Role != "user" {
+		t.Fatalf("namespace replay roles = %#v", request.Messages)
+	}
+}
+
 func protocolRequest(t *testing.T, fixture *fixture, path, body, header, credential string) *httptest.ResponseRecorder {
 	t.Helper()
 	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))

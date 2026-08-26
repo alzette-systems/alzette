@@ -1,10 +1,9 @@
 package gateway
 
 // This file implements the bounded OpenAI Responses <-> Chat Completions
-// conversion used by Alzette. Its hub-and-spoke shape and event sequencing are
-// informed by Maxim Bifrost's Apache-2.0 schemas/mux conversion layer, while
-// remaining deliberately small enough to preserve Alzette's existing request
-// validation, routing, retry, and accounting invariants.
+// conversion used by Alzette. It directly uses Maxim Bifrost's Apache-2.0
+// Responses tool schemas and compatibility rules while keeping Alzette's
+// request validation, routing, retry, and accounting invariants authoritative.
 
 import (
 	"bytes"
@@ -51,6 +50,8 @@ type responsesInputItem struct {
 	Role      string                  `json:"role,omitempty"`
 	Content   json.RawMessage         `json:"content,omitempty"`
 	ID        string                  `json:"id,omitempty"`
+	Status    string                  `json:"status,omitempty"`
+	Phase     string                  `json:"phase,omitempty"`
 	CallID    string                  `json:"call_id,omitempty"`
 	Name      string                  `json:"name,omitempty"`
 	Namespace string                  `json:"namespace,omitempty"`
@@ -65,8 +66,9 @@ type responsesToolIdentity struct {
 }
 
 type responsesContentPart struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	Type        string          `json:"type"`
+	Text        string          `json:"text,omitempty"`
+	Annotations json.RawMessage `json:"annotations,omitempty"`
 }
 
 func decodeResponsesRequest(data []byte) (ChatRequest, error) {
