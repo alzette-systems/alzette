@@ -28,6 +28,16 @@ type Context struct {
 	Environment  string   `json:"environment"`
 	Relationship string   `json:"relationship"`
 	ModelAliases []string `json:"model_aliases"`
+	Models       []Model  `json:"models,omitempty"`
+}
+
+// Model is the employee-safe capability contract for one entitled alias. It
+// deliberately contains no provider, target, route, or infrastructure identity.
+type Model struct {
+	Alias               string   `json:"alias"`
+	DisplayName         string   `json:"display_name"`
+	Capabilities        []string `json:"capabilities,omitempty"`
+	ContextWindowTokens *int64   `json:"context_window_tokens,omitempty"`
 }
 
 type MintInput struct {

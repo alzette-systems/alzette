@@ -44,10 +44,11 @@ func (s *Store) ListAgentContexts(ctx context.Context, identity federation.Ident
 		} else {
 			value.Relationship = "employee"
 		}
-		value.ModelAliases, err = loadEffectiveAliases(ctx, s.db, organisationID, projectID, environmentID, personID, owner)
+		value.Models, err = loadEffectiveModels(ctx, s.db, organisationID, projectID, environmentID, personID, owner)
 		if err != nil {
 			return nil, err
 		}
+		value.ModelAliases = aliasesForAgentModels(value.Models)
 		if len(value.ModelAliases) != 0 {
 			contexts = append(contexts, value)
 		}
@@ -59,11 +60,19 @@ type queryer interface {
 	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
 }
 
-func loadEffectiveAliases(ctx context.Context, q queryer, organisationID, projectID, environmentID, personID string, owner bool) ([]string, error) {
-	query := `SELECT DISTINCT m.alias
+func loadEffectiveModels(ctx context.Context, q queryer, organisationID, projectID, environmentID, personID string, owner bool) ([]agentauth.Model, error) {
+	query := `SELECT DISTINCT ON (m.alias) m.alias,COALESCE(cat.name,m.alias),COALESCE(cat.capabilities,'[]'::jsonb),cat.context_window_tokens
 		FROM tenant_routes r
 		JOIN models m ON m.id=r.model_id AND m.enabled
 		JOIN inference_targets t ON t.id=r.target_id AND t.enabled
+		LEFT JOIN LATERAL (
+			SELECT cm.name,cm.capabilities,v.context_window_tokens
+			FROM catalogue_model_versions v
+			JOIN catalogue_models cm ON cm.id=v.catalogue_model_id AND cm.lifecycle_status IN ('published','deprecated')
+			WHERE v.routable_model_id=m.id AND v.lifecycle_status IN ('available','deprecated')
+			ORDER BY v.published_at DESC NULLS LAST,v.created_at DESC
+			LIMIT 1
+		) cat ON true
 		WHERE r.organisation_id=$1 AND r.project_id=$2 AND r.environment_id=$3 AND r.enabled`
 	args := []interface{}{organisationID, projectID, environmentID}
 	if !owner {
@@ -77,18 +86,43 @@ func loadEffectiveAliases(ctx context.Context, q queryer, organisationID, projec
 	query += ` ORDER BY m.alias`
 	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("resolve effective aliases: %w", err)
+		return nil, fmt.Errorf("resolve effective models: %w", err)
 	}
 	defer rows.Close()
-	var aliases []string
+	var models []agentauth.Model
 	for rows.Next() {
-		var alias string
-		if err := rows.Scan(&alias); err != nil {
+		var model agentauth.Model
+		var capabilities []byte
+		var contextWindow sql.NullInt64
+		if err := rows.Scan(&model.Alias, &model.DisplayName, &capabilities, &contextWindow); err != nil {
 			return nil, err
 		}
-		aliases = append(aliases, alias)
+		if err := json.Unmarshal(capabilities, &model.Capabilities); err != nil {
+			return nil, fmt.Errorf("decode effective model capabilities: %w", err)
+		}
+		if contextWindow.Valid {
+			value := contextWindow.Int64
+			model.ContextWindowTokens = &value
+		}
+		models = append(models, model)
 	}
-	return aliases, rows.Err()
+	return models, rows.Err()
+}
+
+func aliasesForAgentModels(models []agentauth.Model) []string {
+	aliases := make([]string, 0, len(models))
+	for _, model := range models {
+		aliases = append(aliases, model.Alias)
+	}
+	return aliases
+}
+
+func loadEffectiveAliases(ctx context.Context, q queryer, organisationID, projectID, environmentID, personID string, owner bool) ([]string, error) {
+	models, err := loadEffectiveModels(ctx, q, organisationID, projectID, environmentID, personID, owner)
+	if err != nil {
+		return nil, err
+	}
+	return aliasesForAgentModels(models), nil
 }
 
 type agentContextRecord struct {
@@ -129,7 +163,8 @@ func loadAgentContextTx(ctx context.Context, tx *sql.Tx, identity federation.Ide
 	} else {
 		record.Context.Relationship = "employee"
 	}
-	record.Context.ModelAliases, err = loadEffectiveAliases(ctx, tx, record.OrganisationID, record.ProjectID, record.EnvironmentID, record.PersonID, record.Owner)
+	record.Context.Models, err = loadEffectiveModels(ctx, tx, record.OrganisationID, record.ProjectID, record.EnvironmentID, record.PersonID, record.Owner)
+	record.Context.ModelAliases = aliasesForAgentModels(record.Context.Models)
 	return record, err
 }
 
