@@ -3,6 +3,7 @@ package gateway
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,89 @@ import (
 	"sync/atomic"
 	"testing"
 )
+
+func TestResponsesNamespaceAndAdditionalToolsUseBifrostCompatibility(t *testing.T) {
+	var captured ChatRequest
+	fixture := newFixture(t, func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("decode upstream request: %v", err)
+			return
+		}
+		if len(captured.Tools) != 2 {
+			t.Errorf("compatible tools = %#v", captured.Tools)
+			return
+		}
+		var namespaceAlias string
+		for _, tool := range captured.Tools {
+			if tool.Function.Name != "wait" {
+				namespaceAlias = tool.Function.Name
+			}
+		}
+		if namespaceAlias == "" || !validToolName(namespaceAlias) {
+			t.Errorf("namespace alias = %q", namespaceAlias)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"id":"resp_provider","model":"provider/private","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_open_1","type":"function","function":{"name":%q,"arguments":"{\"path\":\"README.md\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":9,"completion_tokens":4}}`, namespaceAlias)
+	}, nil)
+
+	body := `{
+		"model":"safe-chat",
+		"input":[
+			{"type":"additional_tools","role":"developer","tools":[
+				{"type":"custom","name":"apply_patch","description":"Apply a patch"},
+				{"type":"function","name":"wait","description":"Wait","parameters":{"type":"object","properties":{"cell_id":{"type":"string"}},"required":["cell_id"]}}
+			]},
+			{"role":"user","content":[{"type":"input_text","text":"Open the readme"}]}
+		],
+		"tools":[{"type":"namespace","name":"repo_tools","description":"Repository tools","tools":[
+			{"type":"function","name":"open_file","description":"Open a file","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}
+		]}]
+	}`
+	response := protocolRequest(t, fixture, "/v1/responses", body, "Authorization", "Bearer "+fixture.key)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if len(captured.Messages) != 1 || captured.Messages[0].Role != "user" {
+		t.Fatalf("translated messages = %#v", captured.Messages)
+	}
+	var result struct {
+		Output []struct {
+			Type      string `json:"type"`
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		} `json:"output"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Output) != 1 || result.Output[0].Type != "function_call" || result.Output[0].Name != "open_file" || result.Output[0].Namespace != "repo_tools" {
+		t.Fatalf("Responses namespace call = %#v", result.Output)
+	}
+}
+
+func TestResponsesNamespaceToolStreamingRestoresIdentity(t *testing.T) {
+	streamBody := sse(
+		`{"id":"stream-tool-namespace","model":"provider/private","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_weather_1","type":"function","function":{"name":"repo_tools__weather","arguments":"{\"city\":\""}}]},"finish_reason":null}]}`,
+		`{"id":"stream-tool-namespace","model":"provider/private","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"Luxembourg\"}"}}]},"finish_reason":"tool_calls"}]}`,
+		`{"id":"stream-tool-namespace","model":"provider/private","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":6}}`,
+		`[DONE]`,
+	)
+	fixture := newFixture(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, streamBody)
+	}, nil)
+	body := `{"model":"safe-chat","input":"Weather?","stream":true,"tools":[{"type":"namespace","name":"repo_tools","tools":[{"type":"function","name":"weather","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}]}]}`
+	response := protocolRequest(t, fixture, "/v1/responses", body, "Authorization", "Bearer "+fixture.key)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	for _, expected := range []string{`"name":"weather"`, `"namespace":"repo_tools"`, "event: response.completed"} {
+		if !strings.Contains(response.Body.String(), expected) {
+			t.Fatalf("missing %q in %s", expected, response.Body.String())
+		}
+	}
+}
 
 func protocolRequest(t *testing.T, fixture *fixture, path, body, header, credential string) *httptest.ResponseRecorder {
 	t.Helper()

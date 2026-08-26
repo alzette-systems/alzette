@@ -8,6 +8,7 @@ package gateway
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,27 +16,29 @@ import (
 	"time"
 
 	"alzette/internal/platform"
+
+	"github.com/maximhq/bifrost/core/schemas"
 )
 
 type responsesRequest struct {
-	Model              string              `json:"model"`
-	Input              json.RawMessage     `json:"input"`
-	Instructions       json.RawMessage     `json:"instructions,omitempty"`
-	Stream             *bool               `json:"stream,omitempty"`
-	MaxOutputTokens    *int                `json:"max_output_tokens,omitempty"`
-	Temperature        *float64            `json:"temperature,omitempty"`
-	TopP               *float64            `json:"top_p,omitempty"`
-	Tools              []responsesTool     `json:"tools,omitempty"`
-	ToolChoice         json.RawMessage     `json:"tool_choice,omitempty"`
-	ParallelToolCalls  *bool               `json:"parallel_tool_calls,omitempty"`
-	Reasoning          *responsesReasoning `json:"reasoning,omitempty"`
-	Store              *bool               `json:"store,omitempty"`
-	PreviousResponseID string              `json:"previous_response_id,omitempty"`
-	Include            []string            `json:"include,omitempty"`
-	Metadata           json.RawMessage     `json:"metadata,omitempty"`
-	Text               json.RawMessage     `json:"text,omitempty"`
-	Truncation         string              `json:"truncation,omitempty"`
-	User               string              `json:"user,omitempty"`
+	Model              string                  `json:"model"`
+	Input              json.RawMessage         `json:"input"`
+	Instructions       json.RawMessage         `json:"instructions,omitempty"`
+	Stream             *bool                   `json:"stream,omitempty"`
+	MaxOutputTokens    *int                    `json:"max_output_tokens,omitempty"`
+	Temperature        *float64                `json:"temperature,omitempty"`
+	TopP               *float64                `json:"top_p,omitempty"`
+	Tools              []schemas.ResponsesTool `json:"tools,omitempty"`
+	ToolChoice         json.RawMessage         `json:"tool_choice,omitempty"`
+	ParallelToolCalls  *bool                   `json:"parallel_tool_calls,omitempty"`
+	Reasoning          *responsesReasoning     `json:"reasoning,omitempty"`
+	Store              *bool                   `json:"store,omitempty"`
+	PreviousResponseID string                  `json:"previous_response_id,omitempty"`
+	Include            []string                `json:"include,omitempty"`
+	Metadata           json.RawMessage         `json:"metadata,omitempty"`
+	Text               json.RawMessage         `json:"text,omitempty"`
+	Truncation         string                  `json:"truncation,omitempty"`
+	User               string                  `json:"user,omitempty"`
 }
 
 type responsesReasoning struct {
@@ -43,23 +46,22 @@ type responsesReasoning struct {
 	Summary string `json:"summary,omitempty"`
 }
 
-type responsesTool struct {
-	Type        string          `json:"type"`
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	Parameters  json.RawMessage `json:"parameters"`
-	Strict      *bool           `json:"strict,omitempty"`
+type responsesInputItem struct {
+	Type      string                  `json:"type,omitempty"`
+	Role      string                  `json:"role,omitempty"`
+	Content   json.RawMessage         `json:"content,omitempty"`
+	ID        string                  `json:"id,omitempty"`
+	CallID    string                  `json:"call_id,omitempty"`
+	Name      string                  `json:"name,omitempty"`
+	Namespace string                  `json:"namespace,omitempty"`
+	Arguments string                  `json:"arguments,omitempty"`
+	Output    json.RawMessage         `json:"output,omitempty"`
+	Tools     []schemas.ResponsesTool `json:"tools,omitempty"`
 }
 
-type responsesInputItem struct {
-	Type      string          `json:"type,omitempty"`
-	Role      string          `json:"role,omitempty"`
-	Content   json.RawMessage `json:"content,omitempty"`
-	ID        string          `json:"id,omitempty"`
-	CallID    string          `json:"call_id,omitempty"`
-	Name      string          `json:"name,omitempty"`
-	Arguments string          `json:"arguments,omitempty"`
-	Output    json.RawMessage `json:"output,omitempty"`
+type responsesToolIdentity struct {
+	Namespace string
+	Name      string
 }
 
 type responsesContentPart struct {
@@ -97,16 +99,27 @@ func decodeResponsesRequest(data []byte) (ChatRequest, error) {
 		return ChatRequest{}, unsupportedProtocolField("Responses", "user")
 	}
 
-	messages, err := responsesInputToMessages(input.Instructions, input.Input)
+	messages, additionalTools, err := responsesInputToMessages(input.Instructions, input.Input)
 	if err != nil {
 		return ChatRequest{}, err
 	}
-	tools := make([]Tool, 0, len(input.Tools))
-	for _, value := range input.Tools {
-		if value.Type != "function" {
-			return ChatRequest{}, unsupportedProtocolField("Responses", "tools."+value.Type)
+	allTools := append(append(make([]schemas.ResponsesTool, 0, len(input.Tools)+len(additionalTools)), input.Tools...), additionalTools...)
+	tools, aliases, identities, err := responsesToolsToChat(allTools)
+	if err != nil {
+		return ChatRequest{}, err
+	}
+	for messageIndex := range messages {
+		for callIndex := range messages[messageIndex].ToolCalls {
+			call := &messages[messageIndex].ToolCalls[callIndex]
+			if call.Namespace == "" {
+				continue
+			}
+			alias, ok := identities[responsesIdentityKey(call.Namespace, call.Function.Name)]
+			if !ok {
+				return ChatRequest{}, invalidProtocolRequest("Responses", "function_call references an undeclared namespace tool")
+			}
+			call.Function.Name = alias
 		}
-		tools = append(tools, Tool{Type: "function", Function: ToolDefinition{Name: value.Name, Description: value.Description, Parameters: value.Parameters, Strict: value.Strict}})
 	}
 	toolChoice, err := responsesToolChoice(input.ToolChoice)
 	if err != nil {
@@ -123,6 +136,7 @@ func decodeResponsesRequest(data []byte) (ChatRequest, error) {
 		Model: input.Model, Messages: messages, Stream: input.Stream,
 		Temperature: input.Temperature, TopP: input.TopP, MaxTokens: input.MaxOutputTokens,
 		ReasoningEffort: reasoningEffort, ParallelToolCalls: input.ParallelToolCalls, Tools: tools, ToolChoice: toolChoice,
+		ResponsesToolAliases: aliases,
 	}
 	if request.streaming() {
 		include := true
@@ -147,28 +161,29 @@ func responsesTextIsDefault(raw json.RawMessage) bool {
 	return decodeStrict(value.Format, &format) == nil && (format.Type == "" || format.Type == "text")
 }
 
-func responsesInputToMessages(instructions, raw json.RawMessage) ([]Message, error) {
+func responsesInputToMessages(instructions, raw json.RawMessage) ([]Message, []schemas.ResponsesTool, error) {
 	messages := make([]Message, 0)
+	additionalTools := make([]schemas.ResponsesTool, 0)
 	if len(bytes.TrimSpace(instructions)) != 0 && !bytes.Equal(bytes.TrimSpace(instructions), []byte("null")) {
 		text, err := responsesTextContent(instructions, true)
 		if err != nil || text == "" {
-			return nil, invalidProtocolRequest("Responses", "instructions must contain text")
+			return nil, nil, invalidProtocolRequest("Responses", "instructions must contain text")
 		}
 		messages = append(messages, Message{Role: "system", Content: rawString(text)})
 	}
 	if len(bytes.TrimSpace(raw)) == 0 {
-		return nil, invalidProtocolRequest("Responses", "requires input")
+		return nil, nil, invalidProtocolRequest("Responses", "requires input")
 	}
 	var text string
 	if err := json.Unmarshal(raw, &text); err == nil {
 		if text == "" {
-			return nil, invalidProtocolRequest("Responses", "input text must not be empty")
+			return nil, nil, invalidProtocolRequest("Responses", "input text must not be empty")
 		}
-		return append(messages, Message{Role: "user", Content: rawString(text)}), nil
+		return append(messages, Message{Role: "user", Content: rawString(text)}), nil, nil
 	}
 	var items []responsesInputItem
 	if err := decodeStrict(raw, &items); err != nil || len(items) == 0 || len(items) > maxMessages*2 {
-		return nil, invalidProtocolRequest("Responses", "input must be text or a supported item array")
+		return nil, nil, invalidProtocolRequest("Responses", "input must be text or a supported item array")
 	}
 	for _, item := range items {
 		switch item.Type {
@@ -178,18 +193,18 @@ func responsesInputToMessages(instructions, raw json.RawMessage) ([]Message, err
 				role = "system"
 			}
 			if role != "system" && role != "user" && role != "assistant" {
-				return nil, invalidProtocolRequest("Responses", "message role is unsupported")
+				return nil, nil, invalidProtocolRequest("Responses", "message role is unsupported")
 			}
 			content, err := responsesMessageContent(item.Content)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			messages = append(messages, Message{Role: role, Content: content})
 		case "function_call":
 			if !validToolCallID(item.CallID) || !validToolName(item.Name) || !validJSONObjectString(item.Arguments) {
-				return nil, invalidProtocolRequest("Responses", "function_call is invalid")
+				return nil, nil, invalidProtocolRequest("Responses", "function_call is invalid")
 			}
-			call := ToolCall{ID: item.CallID, Type: "function", Function: ToolFunction{Name: item.Name, Arguments: item.Arguments}}
+			call := ToolCall{ID: item.CallID, Type: "function", Function: ToolFunction{Name: item.Name, Arguments: item.Arguments}, Namespace: item.Namespace}
 			if len(messages) != 0 && messages[len(messages)-1].Role == "assistant" && messages[len(messages)-1].ToolCallID == "" {
 				last := &messages[len(messages)-1]
 				last.ToolCalls = append(last.ToolCalls, call)
@@ -201,18 +216,116 @@ func responsesInputToMessages(instructions, raw json.RawMessage) ([]Message, err
 			}
 		case "function_call_output":
 			if !validToolCallID(item.CallID) {
-				return nil, invalidProtocolRequest("Responses", "function_call_output call_id is invalid")
+				return nil, nil, invalidProtocolRequest("Responses", "function_call_output call_id is invalid")
 			}
 			output, err := responsesTextContent(item.Output, false)
 			if err != nil || output == "" {
-				return nil, invalidProtocolRequest("Responses", "function_call_output must contain text")
+				return nil, nil, invalidProtocolRequest("Responses", "function_call_output must contain text")
 			}
 			messages = append(messages, Message{Role: "tool", Content: rawString(output), ToolCallID: item.CallID})
+		case "additional_tools":
+			if item.Role != "" && item.Role != "developer" {
+				return nil, nil, invalidProtocolRequest("Responses", "additional_tools role is unsupported")
+			}
+			additionalTools = append(additionalTools, item.Tools...)
 		default:
-			return nil, unsupportedProtocolField("Responses", "input."+item.Type)
+			return nil, nil, unsupportedProtocolField("Responses", "input."+item.Type)
 		}
 	}
-	return messages, nil
+	return messages, additionalTools, nil
+}
+
+func responsesToolsToChat(values []schemas.ResponsesTool) ([]Tool, map[string]responsesToolIdentity, map[string]string, error) {
+	tools := make([]Tool, 0, len(values))
+	aliases := make(map[string]responsesToolIdentity)
+	identities := make(map[string]string)
+	used := make(map[string]struct{})
+
+	addFunction := func(value schemas.ResponsesTool, namespace string) error {
+		if value.Name == nil || !validToolName(*value.Name) || value.ResponsesToolFunction == nil {
+			return nil
+		}
+		name := *value.Name
+		alias := name
+		if namespace != "" {
+			if !validToolName(namespace) {
+				return nil
+			}
+			alias = namespace + name
+			if !strings.HasSuffix(namespace, "_") {
+				alias = namespace + "__" + name
+			}
+			if !validToolName(alias) {
+				sum := sha256.Sum256([]byte(responsesIdentityKey(namespace, name)))
+				alias = fmt.Sprintf("alz_ns_%x", sum[:12])
+			}
+		}
+		if _, exists := used[alias]; exists {
+			if namespace == "" {
+				return invalidProtocolRequest("Responses", "declares duplicate function tools")
+			}
+			sum := sha256.Sum256([]byte(responsesIdentityKey(namespace, name)))
+			alias = fmt.Sprintf("alz_ns_%x", sum[:12])
+			if _, collision := used[alias]; collision {
+				return invalidProtocolRequest("Responses", "declares colliding namespace tools")
+			}
+		}
+		parameters := json.RawMessage(`{"type":"object","properties":{}}`)
+		if value.ResponsesToolFunction.Parameters != nil {
+			encoded, marshalErr := json.Marshal(value.ResponsesToolFunction.Parameters)
+			if marshalErr != nil {
+				return invalidProtocolRequest("Responses", "contains invalid function parameters")
+			}
+			parameters = encoded
+		}
+		description := ""
+		if value.Description != nil {
+			description = *value.Description
+		}
+		tools = append(tools, Tool{Type: "function", Function: ToolDefinition{Name: alias, Description: description, Parameters: parameters, Strict: value.ResponsesToolFunction.Strict}})
+		used[alias] = struct{}{}
+		if namespace != "" {
+			identity := responsesToolIdentity{Namespace: namespace, Name: name}
+			aliases[alias] = identity
+			identities[responsesIdentityKey(namespace, name)] = alias
+		}
+		return nil
+	}
+
+	for _, value := range values {
+		switch value.Type {
+		case schemas.ResponsesToolTypeFunction:
+			if err := addFunction(value, ""); err != nil {
+				return nil, nil, nil, err
+			}
+		case schemas.ResponsesToolTypeNamespace:
+			if value.Name == nil || value.ResponsesToolNamespace == nil {
+				continue
+			}
+			for _, child := range value.ResponsesToolNamespace.Tools {
+				if child.Type == schemas.ResponsesToolTypeFunction {
+					if err := addFunction(child, *value.Name); err != nil {
+						return nil, nil, nil, err
+					}
+				}
+			}
+		}
+		if len(tools) > maxTools {
+			return nil, nil, nil, invalidProtocolRequest("Responses", "declares too many compatible function tools")
+		}
+	}
+	return tools, aliases, identities, nil
+}
+
+func responsesIdentityKey(namespace, name string) string { return namespace + "\x00" + name }
+
+func responsesFunctionCall(name string, aliases map[string]responsesToolIdentity) map[string]interface{} {
+	result := map[string]interface{}{"name": name}
+	if identity, ok := aliases[name]; ok {
+		result["name"] = identity.Name
+		result["namespace"] = identity.Namespace
+	}
+	return result
 }
 
 func responsesMessageContent(raw json.RawMessage) (json.RawMessage, error) {
@@ -323,7 +436,7 @@ func parseChatCompletionForConversion(body []byte) (chatCompletionResponse, erro
 	return response, nil
 }
 
-func encodeResponsesResponse(body []byte, requestID, publicModel string, now time.Time) ([]byte, error) {
+func encodeResponsesResponse(body []byte, requestID, publicModel string, now time.Time, aliases map[string]responsesToolIdentity) ([]byte, error) {
 	chat, err := parseChatCompletionForConversion(body)
 	if err != nil {
 		return nil, err
@@ -345,10 +458,14 @@ func encodeResponsesResponse(body []byte, requestID, publicModel string, now tim
 		})
 	}
 	for index, call := range choice.Message.ToolCalls {
-		output = append(output, map[string]interface{}{
+		item := map[string]interface{}{
 			"type": "function_call", "id": fmt.Sprintf("fc_%s_%d", requestID, index), "call_id": call.ID,
 			"name": call.Function.Name, "arguments": call.Function.Arguments, "status": "completed",
-		})
+		}
+		for key, value := range responsesFunctionCall(call.Function.Name, aliases) {
+			item[key] = value
+		}
+		output = append(output, item)
 	}
 	status := "completed"
 	var incomplete interface{}

@@ -49,7 +49,7 @@ func (sink *streamSink) write(body []byte) error {
 	return nil
 }
 
-func (g *Gateway) serveStreaming(w http.ResponseWriter, r *http.Request, requestID, publicModel string, protocol wireProtocol, route platform.Route, secret string, upstreamBody []byte, finish requestFinisher) {
+func (g *Gateway) serveStreaming(w http.ResponseWriter, r *http.Request, requestID, publicModel string, protocol wireProtocol, route platform.Route, secret string, upstreamBody []byte, aliases map[string]responsesToolIdentity, finish requestFinisher) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		if !finish("failed", http.StatusInternalServerError, "streaming_unavailable", "", "", "unknown", platform.TokenUsage{}) {
@@ -60,7 +60,7 @@ func (g *Gateway) serveStreaming(w http.ResponseWriter, r *http.Request, request
 		return
 	}
 	sink := &streamSink{writer: w, flusher: flusher}
-	encoder := newProtocolStreamEncoder(protocol, requestID, publicModel, g.clock().UTC())
+	encoder := newProtocolStreamEncoder(protocol, requestID, publicModel, g.clock().UTC(), aliases)
 	var terminal attemptResult
 	for attemptNumber := 1; attemptNumber <= route.Target.MaxAttempts; attemptNumber++ {
 		terminal = g.performStreamingAttempt(r.Context(), requestID, route, secret, upstreamBody, attemptNumber, sink, encoder)

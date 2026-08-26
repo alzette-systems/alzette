@@ -139,12 +139,12 @@ func decodeOneJSON(raw json.RawMessage, destination interface{}) error {
 	return nil
 }
 
-func encodeProtocolResponse(protocol wireProtocol, body []byte, requestID, publicModel string, now time.Time) ([]byte, error) {
+func encodeProtocolResponse(protocol wireProtocol, body []byte, requestID, publicModel string, now time.Time, aliases map[string]responsesToolIdentity) ([]byte, error) {
 	switch protocol {
 	case protocolChat:
 		return body, nil
 	case protocolResponses:
-		return encodeResponsesResponse(body, requestID, publicModel, now)
+		return encodeResponsesResponse(body, requestID, publicModel, now, aliases)
 	case protocolAnthropic:
 		return encodeAnthropicResponse(body, requestID, publicModel, now)
 	default:

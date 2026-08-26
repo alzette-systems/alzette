@@ -35,6 +35,11 @@ type ChatRequest struct {
 	ParallelToolCalls   *bool           `json:"parallel_tool_calls,omitempty"`
 	Tools               []Tool          `json:"tools,omitempty"`
 	ToolChoice          json.RawMessage `json:"tool_choice,omitempty"`
+	// ResponsesToolAliases is internal adapter state. Namespace tools do not
+	// exist in Chat Completions, so the Responses adapter gives their child
+	// functions bounded transport names and restores the public identity on the
+	// way back to the client.
+	ResponsesToolAliases map[string]responsesToolIdentity `json:"-"`
 }
 
 type StreamOptions struct {
@@ -51,9 +56,10 @@ type Message struct {
 }
 
 type ToolCall struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	Function ToolFunction `json:"function"`
+	ID        string       `json:"id"`
+	Type      string       `json:"type"`
+	Function  ToolFunction `json:"function"`
+	Namespace string       `json:"-"`
 }
 
 type Tool struct {

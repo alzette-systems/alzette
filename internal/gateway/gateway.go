@@ -220,7 +220,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if request.streaming() {
-		g.serveStreaming(w, r, requestID, publicModel, protocol, route, secret, upstreamBody, finish)
+		g.serveStreaming(w, r, requestID, publicModel, protocol, route, secret, upstreamBody, request.ResponsesToolAliases, finish)
 		return
 	}
 
@@ -228,7 +228,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for attemptNumber := 1; attemptNumber <= route.Target.MaxAttempts; attemptNumber++ {
 		terminal = g.performAttempt(r.Context(), requestID, route, secret, upstreamBody, attemptNumber)
 		if terminal.success {
-			responseBody, encodeErr := encodeProtocolResponse(protocol, terminal.body, requestID, publicModel, g.clock().UTC())
+			responseBody, encodeErr := encodeProtocolResponse(protocol, terminal.body, requestID, publicModel, g.clock().UTC(), request.ResponsesToolAliases)
 			if encodeErr != nil {
 				if !finish("failed", http.StatusBadGateway, "invalid_upstream_response", "", terminal.providerID, "unknown", platform.TokenUsage{}) {
 					writeError(http.StatusServiceUnavailable, "ledger_unavailable", "api_error", "request result could not be recorded", requestID)

@@ -15,10 +15,10 @@ type protocolStreamEncoder interface {
 	Finish(streamState) ([]byte, error)
 }
 
-func newProtocolStreamEncoder(protocol wireProtocol, requestID, publicModel string, now time.Time) protocolStreamEncoder {
+func newProtocolStreamEncoder(protocol wireProtocol, requestID, publicModel string, now time.Time, aliases map[string]responsesToolIdentity) protocolStreamEncoder {
 	switch protocol {
 	case protocolResponses:
-		return &responsesStreamEncoder{requestID: requestID, publicModel: publicModel, createdAt: now.Unix(), tools: make(map[int]*translatedTool)}
+		return &responsesStreamEncoder{requestID: requestID, publicModel: publicModel, createdAt: now.Unix(), tools: make(map[int]*translatedTool), aliases: aliases}
 	case protocolAnthropic:
 		return &anthropicStreamEncoder{requestID: requestID, publicModel: publicModel, tools: make(map[int]*translatedTool), openBlock: -1}
 	default:
@@ -32,6 +32,7 @@ type translatedTool struct {
 	itemID      string
 	callID      string
 	name        string
+	namespace   string
 	arguments   strings.Builder
 	blockIndex  int
 }
@@ -77,6 +78,7 @@ type responsesStreamEncoder struct {
 	textItemID             string
 	text                   strings.Builder
 	tools                  map[int]*translatedTool
+	aliases                map[string]responsesToolIdentity
 	nextOutputIndex        int
 	finishReason           string
 }
@@ -154,9 +156,17 @@ func (e *responsesStreamEncoder) Encode(data string) ([]byte, error) {
 				return nil, errors.New("translated tool stream did not begin with an id and name")
 			}
 			tool = &translatedTool{index: call.Index, outputIndex: e.nextOutputIndex, itemID: fmt.Sprintf("fc_%s_%d", e.requestID, call.Index), callID: call.ID, name: call.Function.Name}
+			public := responsesFunctionCall(tool.name, e.aliases)
+			tool.name = public["name"].(string)
+			if namespace, ok := public["namespace"].(string); ok {
+				tool.namespace = namespace
+			}
 			e.nextOutputIndex++
 			e.tools[call.Index] = tool
 			item := map[string]interface{}{"type": "function_call", "id": tool.itemID, "call_id": tool.callID, "name": tool.name, "arguments": "", "status": "in_progress"}
+			if tool.namespace != "" {
+				item["namespace"] = tool.namespace
+			}
 			frame, frameErr := e.event("response.output_item.added", map[string]interface{}{"output_index": tool.outputIndex, "item": item})
 			if frameErr != nil {
 				return nil, frameErr
@@ -166,8 +176,11 @@ func (e *responsesStreamEncoder) Encode(data string) ([]byte, error) {
 			if call.ID != "" && call.ID != tool.callID {
 				return nil, errors.New("translated tool id changed during stream")
 			}
-			if call.Function != nil && call.Function.Name != "" && call.Function.Name != tool.name {
-				return nil, errors.New("translated tool name changed during stream")
+			if call.Function != nil && call.Function.Name != "" {
+				public := responsesFunctionCall(call.Function.Name, e.aliases)
+				if public["name"] != tool.name {
+					return nil, errors.New("translated tool name changed during stream")
+				}
 			}
 		}
 		if call.Function != nil && call.Function.Arguments != "" {
@@ -226,6 +239,9 @@ func (e *responsesStreamEncoder) Finish(meta streamState) ([]byte, error) {
 		}
 		output.Write(frame)
 		item := map[string]interface{}{"type": "function_call", "id": tool.itemID, "call_id": tool.callID, "name": tool.name, "arguments": arguments, "status": "completed"}
+		if tool.namespace != "" {
+			item["namespace"] = tool.namespace
+		}
 		frame, err = e.event("response.output_item.done", map[string]interface{}{"output_index": tool.outputIndex, "item": item})
 		if err != nil {
 			return nil, err
